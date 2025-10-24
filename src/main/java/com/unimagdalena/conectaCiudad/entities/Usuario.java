@@ -50,7 +50,7 @@ public class Usuario {
     @Column(length = 10, nullable = false)
     private String celular;
     
-    @Column(name="fecha_creacion")
+    @Column(name="fecha_creacion", nullable = true)
     @CreationTimestamp
     private LocalDateTime fechaCreacion;
 
