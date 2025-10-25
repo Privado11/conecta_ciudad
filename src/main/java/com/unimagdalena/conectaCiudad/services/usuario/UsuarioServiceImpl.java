@@ -64,6 +64,7 @@ public class UsuarioServiceImpl implements UsuarioService {
                                     .correo(usuario.correo())
                                     .password(passwordEncoder.encode(usuario.password()))
                                     .celular(usuario.celular())
+                                    .activo(true)
                                     .roles(roles)
                                     .build();
         
