@@ -44,13 +44,13 @@ public class Usuario {
     @Column(nullable = false, length = 60)
     private String password;
 
-    @Column(columnDefinition = "boolean default true")
+    @Column(columnDefinition = "boolean default true", nullable = true)
     private Boolean activo;
 
     @Column(length = 10, nullable = false)
     private String celular;
     
-    @Column(name="fecha_creacion")
+    @Column(name="fecha_creacion", nullable = true)
     @CreationTimestamp
     private LocalDateTime fechaCreacion;
 
