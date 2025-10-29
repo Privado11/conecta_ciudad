@@ -19,28 +19,30 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="acciones")
+@Table(name = "actions")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
-public class Accion {
+public class Action {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, length = 30)
-    private String nombre;
+    private String name;
 
     @Column(length = 250, nullable = false)
-    private String descripcion;
+    private String description;
 
-    @Column(name="fecha_accion")
+    @Column(name = "action_at")
     @CreationTimestamp
-    private LocalDateTime fechaAccion;
+    private LocalDateTime actionAt;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_id")
-    private Usuario usuario;
+    @JoinColumn(name = "user_id")
+    private User user;
 }
+
+

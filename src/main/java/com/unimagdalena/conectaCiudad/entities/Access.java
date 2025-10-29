@@ -11,7 +11,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,35 +19,24 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="revisiones")
+@Table(name = "accesses")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
-public class Revision {
+public class Access {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "access_at")
     @CreationTimestamp
-    @Column(name = "fecha_inicio")
-    private LocalDateTime fechaInicio;
-
-    @Column(name = "fecha_revision", nullable = true)
-    private LocalDateTime fechaRevision;
-
-    @Column(name = "fecha_limite", nullable = false) /*no pueden pasar más de 10 días sin revisar desde su creación*/
-    private LocalDateTime fechaLimite;
-
-    @Column(length = 500, nullable = true)
-    private String observaciones;
+    private LocalDateTime accessAt;
 
     @ManyToOne
-    @JoinColumn(name = "usuario_id")
-    private Usuario curador; //debe ser curador, sino no puede hacer la revisión
-
-    @OneToOne
-    @JoinColumn(name = "proyecto_id")
-    private Proyecto proyecto;
+    @JoinColumn(name = "user_id")
+    private User user;
 }
+
+

@@ -17,40 +17,42 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="proyectos")
+@Table(name = "projects")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
-public class Proyecto {
+public class Project {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
     @Column(length = 50, nullable = false)
-    private String nombre;
+    private String name;
 
     @Column(length = 150, nullable = false)
-    private String objetivos;
+    private String objectives;
 
-    @Column(length = 250, nullable = false, name="poblaciones_beneficiadas")
-    private String poblacionesBeneficiadas;
+    @Column(length = 250, nullable = false, name = "beneficiary_populations")
+    private String beneficiaryPopulations;
 
     @Column(length = 150, nullable = false)
-    private String presupuestos;
+    private String budgets;
 
-    @Column(name="fecha_inicio", nullable = false)
-    private LocalDateTime fechaInicio;
+    @Column(name = "start_at", nullable = false)
+    private LocalDateTime startAt;
 
-    @Column(name="fecha_finalizacion", nullable = false)
-    private LocalDateTime fechaFinalizacion;
-
-    @ManyToOne
-    @JoinColumn(name = "usuario_id")
-    private Usuario creador;
+    @Column(name = "end_at", nullable = false)
+    private LocalDateTime endAt;
 
     @ManyToOne
-    @JoinColumn(name = "estado_id")
-    private Estado estado;
+    @JoinColumn(name = "user_id")
+    private User creator;
+
+    @ManyToOne
+    @JoinColumn(name = "status_id")
+    private Status status;
 }
+
+

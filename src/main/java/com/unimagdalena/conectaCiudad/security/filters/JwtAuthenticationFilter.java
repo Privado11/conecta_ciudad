@@ -9,14 +9,13 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.unimagdalena.conectaCiudad.entities.Acceso;
-import com.unimagdalena.conectaCiudad.entities.Usuario;
-import com.unimagdalena.conectaCiudad.repositories.AccesoRepository;
-import com.unimagdalena.conectaCiudad.repositories.UsuarioRepository;
+import com.unimagdalena.conectaCiudad.entities.Access;
+import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -31,20 +30,20 @@ import static com.unimagdalena.conectaCiudad.security.TokenJwtConfig.*;
 public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter{
 
     private AuthenticationManager authenticationManager;
-    private UsuarioRepository usuarioRepository;
-    private AccesoRepository accesoRepository;
+    private UserRepository userRepository;
+    private AccessRepository accessRepository;
     
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         
-        Usuario usuario=null;
+        User usuario=null;
         String username=null;
         String password=null;
 
         try{
-            usuario=new ObjectMapper().readValue(request.getInputStream(), Usuario.class);
+            usuario=new ObjectMapper().readValue(request.getInputStream(), User.class);
 
-            username=usuario.getCorreo();
+            username=usuario.getEmail();
             password=usuario.getPassword();
 
         }catch(Exception e){
@@ -60,12 +59,12 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     @Override
     protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException, ServletException {
 
-        User user=(org.springframework.security.core.userdetails.User) authResult.getPrincipal();
+        org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
 
         //generamos el token
         String token=Jwts.builder()
-            .subject(user.getUsername())
-            .claims(Map.of("roles",user.getAuthorities()))
+            .subject(springUser.getUsername())
+            .claims(Map.of("roles", springUser.getAuthorities()))
             .signWith(SECRET_KEY)
             .expiration(new Date(System.currentTimeMillis() + 3600000))
             .issuedAt(new Date())
@@ -75,18 +74,18 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         response.addHeader(HEADER_AUTHORIZATION, PREFIX_TOKEN + token);
 
         Map<String, String> json=new HashMap<>();
-        json.put("token",token);
-        json.put("username", user.getUsername());
-        json.put("message", "Bienvenido " + user.getUsername() + ", has iniciado sesión correctamente");
+        json.put("token", token);
+        json.put("username", springUser.getUsername());
+        json.put("message", "Bienvenido " + springUser.getUsername() + ", has iniciado sesión correctamente");
 
         response.getWriter().write(new ObjectMapper().writeValueAsString(json));
         response.setContentType(CONTENT_TYPE);
         response.setStatus(200);
 
         //registramos el acceso
-        accesoRepository.save(Acceso.builder()
-        .usuario(usuarioRepository.findByCorreo(user.getUsername()))
-        .build());
+        accessRepository.save(Access.builder()
+            .user(userRepository.findByEmail(springUser.getUsername()))
+            .build());
     }
 
 

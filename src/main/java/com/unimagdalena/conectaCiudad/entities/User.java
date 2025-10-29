@@ -22,41 +22,47 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="usuarios")
+@Table(name = "users")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
-public class Usuario {
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(length = 50, nullable = false)
-    private String nombre;
+    private String name;
+
+    @Column(unique = true, nullable = false, name = "national_id")
+    private String nationalId;
 
     @Column(unique = true, nullable = false)
-    private String cc;
-
-    @Column(unique = true, nullable = false)
-    private String correo;
+    private String email;
 
     @Column(nullable = false, length = 60)
     private String password;
 
     @Column(columnDefinition = "boolean default true", nullable = true)
-    private Boolean activo;
+    private Boolean active;
 
-    @Column(length = 10, nullable = false)
-    private String celular;
+    @Column(length = 20, nullable = false)
+    private String phone;
     
-    @Column(name="fecha_creacion", nullable = true)
+    @Column(name = "created_at", nullable = true)
     @CreationTimestamp
-    private LocalDateTime fechaCreacion;
+    private LocalDateTime createdAt;
 
     @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(name = "usuarios_roles", joinColumns = @JoinColumn(name="usuario_id"),
-    inverseJoinColumns = @JoinColumn(name="rol_id"), uniqueConstraints = {@UniqueConstraint(columnNames = {"usuario_id", "rol_id"})})
-    List<Rol> roles;
+    @JoinTable(
+        name = "users_roles",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "role_id"),
+        uniqueConstraints = { @UniqueConstraint(columnNames = { "user_id", "role_id" }) }
+    )
+    List<Role> roles;
 }
+
+

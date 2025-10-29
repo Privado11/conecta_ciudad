@@ -11,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,22 +20,37 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name="accesos")
+@Table(name = "reviews")
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
-public class Acceso {
+public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "fecha_acceso")
     @CreationTimestamp
-    private LocalDateTime fechaAcceso;
+    @Column(name = "start_at")
+    private LocalDateTime startAt;
+
+    @Column(name = "reviewed_at", nullable = true)
+    private LocalDateTime reviewedAt;
+
+    @Column(name = "due_at", nullable = false)
+    private LocalDateTime dueAt;
+
+    @Column(length = 500, nullable = true)
+    private String notes;
 
     @ManyToOne
-    @JoinColumn(name="usuario_id")
-    private Usuario usuario;
+    @JoinColumn(name = "user_id")
+    private User curator;
+
+    @OneToOne
+    @JoinColumn(name = "project_id")
+    private Project project;
 }
+
+

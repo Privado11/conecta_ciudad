@@ -10,8 +10,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
-import com.unimagdalena.conectaCiudad.repositories.AccesoRepository;
-import com.unimagdalena.conectaCiudad.repositories.UsuarioRepository;
+import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
 
 import lombok.RequiredArgsConstructor;
@@ -33,11 +33,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, UsuarioRepository usuarioRepository, AccesoRepository accesoRepository) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, UserRepository userRepository, AccessRepository accessRepository) throws Exception {
         return http
         .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
 
-        .addFilter(new JwtAuthenticationFilter(authenticationManager(), usuarioRepository, accesoRepository))
+        .addFilter(new JwtAuthenticationFilter(authenticationManager(), userRepository, accessRepository))
 
         .csrf(csrf -> csrf.disable())
 

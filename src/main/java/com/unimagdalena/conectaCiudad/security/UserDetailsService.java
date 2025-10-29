@@ -5,13 +5,12 @@ import java.util.stream.Collectors;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import com.unimagdalena.conectaCiudad.entities.Usuario;
-import com.unimagdalena.conectaCiudad.repositories.UsuarioRepository;
+import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,19 +18,24 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class UserDetailsService implements org.springframework.security.core.userdetails.UserDetailsService {
 
-    private final UsuarioRepository usuarioRepository;
+    private final UserRepository userRepository;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         
-        Usuario usuario=usuarioRepository.findByCorreo(username);
+        User user = userRepository.findByEmail(username);
+        
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found with email: " + username);
+        }
 
-        List<GrantedAuthority> authorities=usuario.getRoles().stream()
-            .map(rol->new SimpleGrantedAuthority(rol.getNombre())).collect(Collectors.toList());
+        List<GrantedAuthority> authorities = user.getRoles().stream()
+            .map(rol -> new SimpleGrantedAuthority(rol.getName()))
+            .collect(Collectors.toList());
 
-        return User.builder()
-            .username(usuario.getCorreo())
-            .password(usuario.getPassword())
+        return org.springframework.security.core.userdetails.User.builder()
+            .username(user.getEmail())
+            .password(user.getPassword())
             .accountExpired(false)
             .accountLocked(false)
             .credentialsExpired(false)
