@@ -6,7 +6,8 @@ public record UserSaveDto(
     String nationalId,
     String email,
     String password,
-    String phone
+    String phone,
+    Long roleId
 ) {}
 
 

@@ -2,8 +2,12 @@ package com.unimagdalena.conectaCiudad.entities;
 
 import java.time.LocalDateTime;
 
+import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -50,9 +54,9 @@ public class Project {
     @JoinColumn(name = "user_id")
     private User creator;
 
-    @ManyToOne
-    @JoinColumn(name = "status_id")
-    private Status status;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProjectStatus status;
 }
 
 

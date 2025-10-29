@@ -36,15 +36,15 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         
-        User usuario=null;
+        User user=null;
         String username=null;
         String password=null;
 
         try{
-            usuario=new ObjectMapper().readValue(request.getInputStream(), User.class);
+            user=new ObjectMapper().readValue(request.getInputStream(), User.class);
 
-            username=usuario.getEmail();
-            password=usuario.getPassword();
+            username=user.getEmail();
+            password=user.getPassword();
 
         }catch(Exception e){
             e.printStackTrace();
@@ -61,7 +61,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
 
-        //generamos el token
+       
         String token=Jwts.builder()
             .subject(springUser.getUsername())
             .claims(Map.of("roles", springUser.getAuthorities()))
@@ -70,7 +70,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
             .issuedAt(new Date())
             .compact();
 
-        //devolver el token al cliente 
+        
         response.addHeader(HEADER_AUTHORIZATION, PREFIX_TOKEN + token);
 
         Map<String, String> json=new HashMap<>();
@@ -82,7 +82,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         response.setContentType(CONTENT_TYPE);
         response.setStatus(200);
 
-        //registramos el acceso
+       
         accessRepository.save(Access.builder()
             .user(userRepository.findByEmail(springUser.getUsername()))
             .build());

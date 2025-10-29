@@ -9,10 +9,12 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
+import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
 
 import lombok.RequiredArgsConstructor;
 
@@ -21,6 +23,9 @@ import lombok.RequiredArgsConstructor;
 public class SecurityConfig {
 
     private final AuthenticationConfiguration authenticationConfiguration;
+    private final JwtAuthenticationEntryPoint authenticationEntryPoint;
+    private final UserRepository userRepository;
+    private final AccessRepository accessRepository;
 
     @Bean
     public AuthenticationManager authenticationManager() throws Exception {
@@ -28,23 +33,32 @@ public class SecurityConfig {
     }
 
     @Bean
-    PasswordEncoder passwordEncoder(){
+    PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, UserRepository userRepository, AccessRepository accessRepository) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+
+        JwtAuthenticationFilter jwtAuthFilter = 
+            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessRepository);
+        jwtAuthFilter.setFilterProcessesUrl("/auth/login"); // 👈 Este será tu login
+
         return http
-        .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-
-        .addFilter(new JwtAuthenticationFilter(authenticationManager(), userRepository, accessRepository))
-
-        .csrf(csrf -> csrf.disable())
-
-        .cors(cors-> cors.disable())
-
-        .sessionManagement(management -> management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-        .build();
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.disable())
+            .sessionManagement(management -> 
+                management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v1/auth/register").permitAll() // acceso libre
+                .requestMatchers("/auth/login").permitAll() // 👈 acceso libre al login
+                .anyRequest().authenticated() // el resto requiere token
+            )
+            .exceptionHandling(exception -> 
+                exception.authenticationEntryPoint(authenticationEntryPoint)
+            )
+            .addFilter(jwtAuthFilter)
+            .addFilterBefore(new JwtAuthorizationFilter(userRepository), UsernamePasswordAuthenticationFilter.class)
+            .build();
     }
 }
