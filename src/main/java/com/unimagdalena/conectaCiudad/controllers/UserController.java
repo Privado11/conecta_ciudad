@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.services.user.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -16,7 +17,7 @@ public class UserController {
 
     
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestBody UserSaveDto userSaveDto) {
+    public ResponseEntity<?> register(@Valid @RequestBody UserSaveDto userSaveDto) {
         return ResponseEntity.ok(userService.saveUser(userSaveDto));
     }
 

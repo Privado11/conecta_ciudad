@@ -50,9 +50,9 @@ public class SecurityConfig {
             .sessionManagement(management -> 
                 management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/register").permitAll() // acceso libre
-                .requestMatchers("/auth/login").permitAll() // 👈 acceso libre al login
-                .anyRequest().authenticated() // el resto requiere token
+                .requestMatchers("/api/v1/users/register").permitAll() 
+                .requestMatchers("/auth/login").permitAll() 
+                .anyRequest().authenticated() 
             )
             .exceptionHandling(exception -> 
                 exception.authenticationEntryPoint(authenticationEntryPoint)

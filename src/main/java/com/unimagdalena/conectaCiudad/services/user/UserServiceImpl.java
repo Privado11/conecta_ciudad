@@ -59,24 +59,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDto saveUser(UserSaveDto user) {
-        // Validaciones de campos requeridos
-        if (Objects.isNull(user)) {
-            throw new BadRequestException("User data cannot be null");
-        }
-        if (user.email() == null || user.email().trim().isEmpty()) {
-            throw new BadRequestException("Email is required");
-        }
-        if (user.nationalId() == null || user.nationalId().trim().isEmpty()) {
-            throw new BadRequestException("National ID is required");
-        }
-        if (user.name() == null || user.name().trim().isEmpty()) {
-            throw new BadRequestException("Name is required");
-        }
-        if (user.password() == null || user.password().trim().isEmpty()) {
-            throw new BadRequestException("Password is required");
-        }
-        
+    public UserDto saveUser(UserSaveDto user) {    
 
         Optional<User> existingUser = userRepository.findByEmailOrNationalId(user.email(), user.nationalId());
         existingUser.ifPresent(u -> {
