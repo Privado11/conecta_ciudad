@@ -15,6 +15,7 @@ import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.entities.Action;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
@@ -22,6 +23,7 @@ import org.springframework.security.access.AccessDeniedException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
+import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 
 @Service
 public class ProjectServiceImpl implements ProjectService {
@@ -29,17 +31,20 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private final ActionRepository actionRepository;
     private final UserMapper userMapper;
     private final ProjectMapper projectMapper;
 
     @Autowired
     public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository,
-                              ProjectMapper projectMapper, ReviewRepository reviewRepository, UserMapper userMapper) {
+                              ProjectMapper projectMapper, ReviewRepository reviewRepository, UserMapper userMapper,
+                              ActionRepository actionRepository) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.projectMapper = projectMapper;
         this.reviewRepository = reviewRepository;
         this.userMapper = userMapper;
+        this.actionRepository = actionRepository;
     }
 
     @Override
@@ -127,8 +132,11 @@ public class ProjectServiceImpl implements ProjectService {
                     .dueAt(LocalDateTime.now().plusDays(7))
                     .build();
                 reviewRepository.save(review);
+                logAction(chosenCurator.getId(), "CURATOR_ASSIGNED", "Curator asignado al proyecto " + savedProject.getId());
             }
         }
+
+        logAction(creator.getId(), "PROJECT_CREATED", "Proyecto creado con id " + savedProject.getId());
 
         return attachReview(projectMapper.toDto(savedProject));
     }
@@ -204,6 +212,7 @@ public class ProjectServiceImpl implements ProjectService {
         reviewRepository.save(review);
         project.setStatus(ProjectStatus.OBSERVACIONES);
         projectRepository.save(project);
+        logAction(curatorId, "PROJECT_OBSERVATIONS_ADDED", "Observaciones registradas para proyecto " + projectId);
         return attachReview(projectMapper.toDto(project));
     }
 
@@ -223,6 +232,7 @@ public class ProjectServiceImpl implements ProjectService {
         reviewRepository.save(review);
         project.setStatus(ProjectStatus.LISTO_PARA_PUBLICAR);
         projectRepository.save(project);
+        logAction(curatorId, "PROJECT_APPROVED", "Proyecto " + projectId + " aprobado (listo para publicar)");
         return attachReview(projectMapper.toDto(project));
     }
 
@@ -239,7 +249,7 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public ProjectDto reassignCurator(Long projectId, Long curatorId) {
+    public ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId) {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
 
@@ -269,6 +279,19 @@ public class ProjectServiceImpl implements ProjectService {
             review.setCurator(newCurator);
         }
         reviewRepository.save(review);
+        logAction(adminId, "CURATOR_REASSIGNED", "Curador reasignado a proyecto " + projectId + " -> usuario " + curatorId);
         return projectMapper.toDto(project);
+    }
+
+    private void logAction(Long userId, String name, String description) {
+        if (userId == null) return;
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return;
+        Action action = Action.builder()
+            .name(name)
+            .description(description)
+            .user(user)
+            .build();
+        actionRepository.save(action);
     }
 }

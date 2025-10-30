@@ -61,7 +61,10 @@ public class ProjectController {
     @PreAuthorize("hasAuthority('ADMIN')")
     @PutMapping("/{id}/curator")
     public ResponseEntity<?> reassignCurator(@PathVariable Long id, @RequestParam Long curatorId) {
-        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId));
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User admin = userRepository.findByEmail(email);
+        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, admin.getId()));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
