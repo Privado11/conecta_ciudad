@@ -12,7 +12,8 @@ public interface ProjectService {
     List<ProjectDto> findByNameContainingIgnoreCase(String name);
     List<ProjectDto> findByStatus(ProjectStatus status);
     List<ProjectDto> findByCreatorId(Long creatorId);
-    ProjectDto saveProject(ProjectSaveDto projectSaveDto);
+    ProjectDto saveProject(ProjectSaveDto projectSaveDto, Long creatorId);
     ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto);
     void deleteProject(Long id);
+    ProjectDto reassignCurator(Long projectId, Long curatorId);
 }

@@ -15,6 +15,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findByCreatorId(Long creatorId);
     List<Project> findByStartAt(LocalDateTime startAt);
     List<Project> findByEndAt(LocalDateTime endAt);
+    long countByCreatorId(Long creatorId);
 }
 
 

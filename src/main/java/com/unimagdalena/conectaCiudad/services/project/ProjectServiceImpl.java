@@ -1,5 +1,7 @@
 package com.unimagdalena.conectaCiudad.services.project;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
@@ -9,12 +11,15 @@ import org.springframework.stereotype.Service;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
+import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.entities.Project;
+import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
-import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
+import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
+import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
 @Service
@@ -22,21 +27,26 @@ public class ProjectServiceImpl implements ProjectService {
     
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    private final ReviewRepository reviewRepository;
+    private final UserMapper userMapper;
     private final ProjectMapper projectMapper;
 
     @Autowired
     public ProjectServiceImpl(ProjectRepository projectRepository, UserRepository userRepository,
-                              ProjectMapper projectMapper) {
+                              ProjectMapper projectMapper, ReviewRepository reviewRepository, UserMapper userMapper) {
         this.projectRepository = projectRepository;
         this.userRepository = userRepository;
         this.projectMapper = projectMapper;
+        this.reviewRepository = reviewRepository;
+        this.userMapper = userMapper;
     }
 
     @Override
     public ProjectDto findById(Long id) {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
-        return projectMapper.toDto(project);
+        ProjectDto dto = projectMapper.toDto(project);
+        return attachCurator(dto);
     }
 
     @Override
@@ -44,6 +54,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findAll()
                 .stream()
                 .map(projectMapper::toDto)
+                .map(this::attachCurator)
                 .toList();
     }
 
@@ -52,6 +63,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByNameContainingIgnoreCase(name)
                 .stream()
                 .map(projectMapper::toDto)
+                .map(this::attachCurator)
                 .toList();
     }
 
@@ -60,6 +72,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByStatus(status)
                 .stream()
                 .map(projectMapper::toDto)
+                .map(this::attachCurator)
                 .toList();
     }
 
@@ -68,54 +81,55 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByCreatorId(creatorId)
                 .stream()
                 .map(projectMapper::toDto)
+                .map(this::attachCurator)
                 .toList();
     }
 
     @Override
-    public ProjectDto saveProject(ProjectSaveDto projectSaveDto) {
+    public ProjectDto saveProject(ProjectSaveDto projectSaveDto, Long creatorId) {
        
-        if (Objects.isNull(projectSaveDto)) {
-            throw new BadRequestException("Project data cannot be null");
+        if (projectSaveDto.startAt() == null || projectSaveDto.endAt() == null) {
+            throw new IllegalArgumentException("Both start and end dates are required");
         }
-        if (projectSaveDto.name() == null || projectSaveDto.name().trim().isEmpty()) {
-            throw new BadRequestException("Project name is required");
-        }
-        if (projectSaveDto.objectives() == null || projectSaveDto.objectives().trim().isEmpty()) {
-            throw new BadRequestException("Project objectives are required");
-        }
-        if (projectSaveDto.beneficiaryPopulations() == null || projectSaveDto.beneficiaryPopulations().trim().isEmpty()) {
-            throw new BadRequestException("Beneficiary populations are required");
-        }
-        if (projectSaveDto.budgets() == null || projectSaveDto.budgets().trim().isEmpty()) {
-            throw new BadRequestException("Project budgets are required");
-        }
-        if (projectSaveDto.startAt() == null) {
-            throw new BadRequestException("Start date is required");
-        }
-        if (projectSaveDto.endAt() == null) {
-            throw new BadRequestException("End date is required");
-        }
+    
         if (projectSaveDto.endAt().isBefore(projectSaveDto.startAt())) {
-            throw new BadRequestException("End date must be after start date");
-        }
-
-        
-        if (projectSaveDto.creatorId() == null) {
-            throw new BadRequestException("Creator ID is required");
+            throw new IllegalArgumentException("End date must be after the start date");
         }
         
-        User creator = userRepository.findById(projectSaveDto.creatorId())
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", projectSaveDto.creatorId()));
+        User creator = userRepository.findById(creatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorId));
+        boolean isLeader = creator.getRoles() != null && creator.getRoles().stream()
+                .anyMatch(r -> "LIDER_COMUNITARIO".equalsIgnoreCase(r.getName()));
+        if (!isLeader) {
+            throw new BadRequestException("Solo un LIDER_COMUNITARIO puede crear proyectos");
+        }
         
         Project project = projectMapper.toEntity(projectSaveDto);
         project.setCreator(creator);
-        
-        
         project.setStatus(ProjectStatus.PENDIENTE);
-        
 
         Project savedProject = projectRepository.save(project);
-        return projectMapper.toDto(savedProject);
+
+        
+        List<User> potentialCurators = userRepository.findByRoles_NameIgnoreCase("CURATOR");
+        potentialCurators.removeIf(u -> Objects.equals(u.getId(), creator.getId()));
+
+        if (!potentialCurators.isEmpty()) {
+            User chosenCurator = potentialCurators.stream()
+                .min(Comparator.comparingLong(u -> reviewRepository.countByCuratorIdAndReviewedAtIsNull(u.getId())))
+                .orElse(null);
+
+            if (chosenCurator != null) {
+                Review review = Review.builder()
+                    .project(savedProject)
+                    .curator(chosenCurator)
+                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .build();
+                reviewRepository.save(review);
+            }
+        }
+
+        return attachCurator(projectMapper.toDto(savedProject));
     }
 
     @Override
@@ -138,5 +152,63 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         projectRepository.delete(project);
+    }
+
+    private ProjectDto attachCurator(ProjectDto dto) {
+        if (dto == null || dto.id() == null) return dto;
+        List<Review> reviews = reviewRepository.findByProjectId(dto.id());
+        if (reviews.isEmpty()) {
+            return dto;
+        }
+        User curator = reviews.get(0).getCurator();
+        if (curator == null) {
+            return dto;
+        }
+        return new ProjectDto(
+            dto.id(),
+            dto.name(),
+            dto.objectives(),
+            dto.beneficiaryPopulations(),
+            dto.budgets(),
+            dto.startAt(),
+            dto.endAt(),
+            dto.status(),
+            dto.creator(),
+            userMapper.toDto(curator)
+        );
+    }
+
+    @Override
+    public ProjectDto reassignCurator(Long projectId, Long curatorId) {
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+
+        User newCurator = userRepository.findById(curatorId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", curatorId));
+
+        boolean isCurator = newCurator.getRoles() != null && newCurator.getRoles().stream()
+                .anyMatch(r -> "CURATOR".equalsIgnoreCase(r.getName()));
+        if (!isCurator) {
+            throw new IllegalArgumentException("El usuario no tiene rol CURATOR");
+        }
+        if (Objects.equals(newCurator.getId(), project.getCreator().getId())) {
+            throw new IllegalArgumentException("El creador no puede ser curador de su propio proyecto");
+        }
+
+       
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        Review review;
+        if (reviews.isEmpty()) {
+            review = Review.builder()
+                    .project(project)
+                    .curator(newCurator)
+                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .build();
+        } else {
+            review = reviews.get(0);
+            review.setCurator(newCurator);
+        }
+        reviewRepository.save(review);
+        return projectMapper.toDto(project);
     }
 }

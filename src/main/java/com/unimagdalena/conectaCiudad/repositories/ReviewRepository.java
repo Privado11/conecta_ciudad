@@ -13,6 +13,7 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     List<Review> findByReviewedAt(LocalDateTime reviewedAt);
     List<Review> findByCuratorId(Long curatorId);
     List<Review> findByProjectId(Long projectId);
+    long countByCuratorIdAndReviewedAtIsNull(Long curatorId);
 }
 
 

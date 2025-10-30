@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -62,9 +63,13 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
 
        
+        List<String> roleNames = springUser.getAuthorities().stream()
+            .map(a -> a.getAuthority())
+            .toList();
+
         String token=Jwts.builder()
             .subject(springUser.getUsername())
-            .claims(Map.of("roles", springUser.getAuthorities()))
+            .claims(Map.of("roles", roleNames))
             .signWith(SECRET_KEY)
             .expiration(new Date(System.currentTimeMillis() + 3600000))
             .issuedAt(new Date())

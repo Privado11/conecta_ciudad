@@ -16,6 +16,9 @@ public interface UserService {
     List<UserDto> findAll();
     UserDto updateUser(Long id, UserSaveDto user);
     void deleteUser(Long id);
+    UserDto addRole(Long userId, String roleName);
+    UserDto removeRole(Long userId, String roleName);
+    UserDto createUserWithRoles(UserSaveDto user, java.util.List<String> roles);
 
 }
 

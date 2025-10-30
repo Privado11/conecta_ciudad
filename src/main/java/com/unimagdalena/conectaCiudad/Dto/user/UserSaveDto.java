@@ -1,5 +1,7 @@
 package com.unimagdalena.conectaCiudad.Dto.user;
 
+import java.util.List;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -21,6 +23,6 @@ public record UserSaveDto(
     String password,
     
     String phone,
-    
-    Long roleId
+
+    List<String> roles
 ) {}

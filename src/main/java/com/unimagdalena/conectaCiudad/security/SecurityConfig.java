@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -19,6 +20,7 @@ import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
 import lombok.RequiredArgsConstructor;
 
 @Configuration
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -42,7 +44,7 @@ public class SecurityConfig {
 
         JwtAuthenticationFilter jwtAuthFilter = 
             new JwtAuthenticationFilter(authenticationManager(), userRepository, accessRepository);
-        jwtAuthFilter.setFilterProcessesUrl("/auth/login"); // 👈 Este será tu login
+        jwtAuthFilter.setFilterProcessesUrl("/auth/login"); 
 
         return http
             .csrf(csrf -> csrf.disable())
@@ -50,7 +52,7 @@ public class SecurityConfig {
             .sessionManagement(management -> 
                 management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/users/register").permitAll() 
+                .requestMatchers("/auth/register").permitAll() 
                 .requestMatchers("/auth/login").permitAll() 
                 .anyRequest().authenticated() 
             )

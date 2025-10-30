@@ -14,5 +14,6 @@ public record ProjectDto(
     LocalDateTime startAt,
     LocalDateTime endAt,
     ProjectStatus status,
-    UserDto creator
+    UserDto creator,
+    UserDto curator
 ) {}
