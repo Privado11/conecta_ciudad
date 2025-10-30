@@ -15,5 +15,8 @@ public record ProjectDto(
     LocalDateTime endAt,
     ProjectStatus status,
     UserDto creator,
-    UserDto curator
+    UserDto curator,
+    String reviewNotes,
+    LocalDateTime reviewDueAt,
+    LocalDateTime reviewedAt
 ) {}

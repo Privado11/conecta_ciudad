@@ -18,6 +18,7 @@ import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
+import org.springframework.security.access.AccessDeniedException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
@@ -46,7 +47,7 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
         ProjectDto dto = projectMapper.toDto(project);
-        return attachCurator(dto);
+        return attachReview(dto);
     }
 
     @Override
@@ -54,7 +55,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findAll()
                 .stream()
                 .map(projectMapper::toDto)
-                .map(this::attachCurator)
+                .map(this::attachReview)
                 .toList();
     }
 
@@ -63,7 +64,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByNameContainingIgnoreCase(name)
                 .stream()
                 .map(projectMapper::toDto)
-                .map(this::attachCurator)
+                .map(this::attachReview)
                 .toList();
     }
 
@@ -72,7 +73,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByStatus(status)
                 .stream()
                 .map(projectMapper::toDto)
-                .map(this::attachCurator)
+                .map(this::attachReview)
                 .toList();
     }
 
@@ -81,7 +82,7 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByCreatorId(creatorId)
                 .stream()
                 .map(projectMapper::toDto)
-                .map(this::attachCurator)
+                .map(this::attachReview)
                 .toList();
     }
 
@@ -129,7 +130,7 @@ public class ProjectServiceImpl implements ProjectService {
             }
         }
 
-        return attachCurator(projectMapper.toDto(savedProject));
+        return attachReview(projectMapper.toDto(savedProject));
     }
 
     @Override
@@ -154,15 +155,20 @@ public class ProjectServiceImpl implements ProjectService {
         projectRepository.delete(project);
     }
 
-    private ProjectDto attachCurator(ProjectDto dto) {
+    private ProjectDto attachReview(ProjectDto dto) {
         if (dto == null || dto.id() == null) return dto;
         List<Review> reviews = reviewRepository.findByProjectId(dto.id());
         if (reviews.isEmpty()) {
             return dto;
         }
         User curator = reviews.get(0).getCurator();
+        Review review = reviews.get(0);
         if (curator == null) {
-            return dto;
+            return new ProjectDto(
+                dto.id(), dto.name(), dto.objectives(), dto.beneficiaryPopulations(), dto.budgets(),
+                dto.startAt(), dto.endAt(), dto.status(), dto.creator(), null,
+                review.getNotes(), review.getDueAt(), review.getReviewedAt()
+            );
         }
         return new ProjectDto(
             dto.id(),
@@ -174,8 +180,62 @@ public class ProjectServiceImpl implements ProjectService {
             dto.endAt(),
             dto.status(),
             dto.creator(),
-            userMapper.toDto(curator)
+            userMapper.toDto(curator),
+            review.getNotes(),
+            review.getDueAt(),
+            review.getReviewedAt()
         );
+    }
+
+    @Override
+    public ProjectDto addObservations(Long projectId, Long curatorId, String notes) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        if (reviews.isEmpty()) {
+            throw new ResourceNotFoundException("Review", "projectId", projectId);
+        }
+        Review review = reviews.get(0);
+        if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
+            throw new AccessDeniedException("Solo el curador asignado puede registrar observaciones");
+        }
+        review.setNotes(notes);
+        review.setReviewedAt(LocalDateTime.now());
+        reviewRepository.save(review);
+        project.setStatus(ProjectStatus.OBSERVACIONES);
+        projectRepository.save(project);
+        return attachReview(projectMapper.toDto(project));
+    }
+
+    @Override
+    public ProjectDto approveProject(Long projectId, Long curatorId) {
+        Project project = projectRepository.findById(projectId)
+            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        if (reviews.isEmpty()) {
+            throw new ResourceNotFoundException("Review", "projectId", projectId);
+        }
+        Review review = reviews.get(0);
+        if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
+            throw new AccessDeniedException("Solo el curador asignado puede aprobar");
+        }
+        review.setReviewedAt(LocalDateTime.now());
+        reviewRepository.save(review);
+        project.setStatus(ProjectStatus.LISTO_PARA_PUBLICAR);
+        projectRepository.save(project);
+        return attachReview(projectMapper.toDto(project));
+    }
+
+    @Override
+    public List<ProjectDto> findByCurator(Long curatorId, ProjectStatus status) {
+        List<Review> reviews = reviewRepository.findByCuratorId(curatorId);
+        return reviews.stream()
+            .map(Review::getProject)
+            .filter(Objects::nonNull)
+            .filter(p -> status == null || p.getStatus() == status)
+            .map(projectMapper::toDto)
+            .map(this::attachReview)
+            .toList();
     }
 
     @Override

@@ -16,4 +16,7 @@ public interface ProjectService {
     ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto);
     void deleteProject(Long id);
     ProjectDto reassignCurator(Long projectId, Long curatorId);
+    ProjectDto addObservations(Long projectId, Long curatorId, String notes);
+    ProjectDto approveProject(Long projectId, Long curatorId);
+    java.util.List<ProjectDto> findByCurator(Long curatorId, ProjectStatus status);
 }

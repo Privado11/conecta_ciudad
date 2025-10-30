@@ -6,6 +6,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
+import com.unimagdalena.conectaCiudad.Dto.project.ReviewNotesDto;
+import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.services.project.ProjectService;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.entities.User;
@@ -60,6 +62,33 @@ public class ProjectController {
     @PutMapping("/{id}/curator")
     public ResponseEntity<?> reassignCurator(@PathVariable Long id, @RequestParam Long curatorId) {
         return ResponseEntity.ok(projectService.reassignCurator(id, curatorId));
+    }
+
+    @PreAuthorize("hasAuthority('CURATOR')")
+    @PutMapping("/{id}/observations")
+    public ResponseEntity<?> addObservations(@PathVariable Long id, @Valid @RequestBody ReviewNotesDto body) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User curator = userRepository.findByEmail(email);
+        return ResponseEntity.ok(projectService.addObservations(id, curator.getId(), body.notes()));
+    }
+
+    @PreAuthorize("hasAuthority('CURATOR')")
+    @PutMapping("/{id}/approve")
+    public ResponseEntity<?> approveProject(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User curator = userRepository.findByEmail(email);
+        return ResponseEntity.ok(projectService.approveProject(id, curator.getId()));
+    }
+
+    @PreAuthorize("hasAuthority('CURATOR')")
+    @GetMapping("/my")
+    public ResponseEntity<?> listMyCuratedProjects(@RequestParam(required = false) ProjectStatus status) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String email = auth.getName();
+        User curator = userRepository.findByEmail(email);
+        return ResponseEntity.ok(projectService.findByCurator(curator.getId(), status));
     }
 
     @DeleteMapping("/{id}")
