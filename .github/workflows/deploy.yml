@@ -23,20 +23,20 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
-      # CRÍTICO: Genera tag único que fuerza nuevo pull
+      # Tag único para evitar cache
       - name: Generate unique tag
         id: tag
         run: |
-          TAG="v$(date +%Y%m%d-%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)"
+          TAG="v$(date +%Y%m%d.%H%M%S)"
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
-          echo "🏷️ Using tag: $TAG"
+          echo "Building with tag: $TAG"
 
       - name: Build Docker image
         run: |
           docker build \
             --no-cache \
-            --label "git.commit=$GITHUB_SHA" \
-            --label "build.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=$GITHUB_SHA \
             -t conecta-ciudad:${{ steps.tag.outputs.TAG }} .
 
       - name: Login to Azure Container Registry
@@ -45,37 +45,33 @@ jobs:
             --username ${{ secrets.ACR_USERNAME }} \
             --password-stdin
 
-      - name: Tag and Push Docker image
+      - name: Push Docker images
         run: |
           IMAGE_NAME="${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad"
 
-          # Push tag único primero
+          # Push con tag único
           docker tag conecta-ciudad:${{ steps.tag.outputs.TAG }} ${IMAGE_NAME}:${{ steps.tag.outputs.TAG }}
           docker push ${IMAGE_NAME}:${{ steps.tag.outputs.TAG }}
 
-          # Luego actualiza latest
+          # Push como latest
           docker tag conecta-ciudad:${{ steps.tag.outputs.TAG }} ${IMAGE_NAME}:latest
           docker push ${IMAGE_NAME}:latest
 
-          echo "Pushed tags:"
-          echo "  - ${{ steps.tag.outputs.TAG }}"
-          echo "  - latest"
+          echo "Images pushed successfully"
+          echo "   - ${IMAGE_NAME}:${{ steps.tag.outputs.TAG }}"
+          echo "   - ${IMAGE_NAME}:latest"
 
-      - name: Trigger Azure WebApp Update
-        run: |
-          echo "Triggering Azure webhook..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST '${{ secrets.WEBHOOK_URL }}')
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-
-          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 202 ]; then
-            echo "Webhook triggered successfully (HTTP $HTTP_CODE)"
-          else
-            echo "Webhook returned HTTP $HTTP_CODE"
-          fi
+      # Despliega usando Publish Profile
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          images: ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:${{ steps.tag.outputs.TAG }}
 
       - name: Wait for deployment
         run: |
-          echo "Waiting 60 seconds for Azure to pull and deploy..."
+          echo "Waiting 60 seconds for app to fully start..."
           sleep 60
-          echo "Deployment should be complete. Check your app!"
-          echo "Deployed version: ${{ steps.tag.outputs.TAG }}"
+          echo "Deployment completed!"
+          echo "Version deployed: ${{ steps.tag.outputs.TAG }}"
