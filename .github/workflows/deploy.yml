@@ -23,8 +23,21 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -DskipTests
 
+      # CRÍTICO: Genera tag único que fuerza nuevo pull
+      - name: Generate unique tag
+        id: tag
+        run: |
+          TAG="v$(date +%Y%m%d-%H%M%S)-$(echo $GITHUB_SHA | cut -c1-7)"
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "🏷️ Using tag: $TAG"
+
       - name: Build Docker image
-        run: docker build -t conecta-ciudad:latest .
+        run: |
+          docker build \
+            --no-cache \
+            --label "git.commit=$GITHUB_SHA" \
+            --label "build.date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            -t conecta-ciudad:${{ steps.tag.outputs.TAG }} .
 
       - name: Login to Azure Container Registry
         run: |
@@ -34,9 +47,35 @@ jobs:
 
       - name: Tag and Push Docker image
         run: |
-          docker tag conecta-ciudad:latest ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
-          docker push ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
+          IMAGE_NAME="${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad"
+
+          # Push tag único primero
+          docker tag conecta-ciudad:${{ steps.tag.outputs.TAG }} ${IMAGE_NAME}:${{ steps.tag.outputs.TAG }}
+          docker push ${IMAGE_NAME}:${{ steps.tag.outputs.TAG }}
+
+          # Luego actualiza latest
+          docker tag conecta-ciudad:${{ steps.tag.outputs.TAG }} ${IMAGE_NAME}:latest
+          docker push ${IMAGE_NAME}:latest
+
+          echo "Pushed tags:"
+          echo "  - ${{ steps.tag.outputs.TAG }}"
+          echo "  - latest"
 
       - name: Trigger Azure WebApp Update
         run: |
-          curl -X POST '${{ secrets.WEBHOOK_URL }}'
+          echo "Triggering Azure webhook..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST '${{ secrets.WEBHOOK_URL }}')
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+
+          if [ "$HTTP_CODE" -eq 200 ] || [ "$HTTP_CODE" -eq 202 ]; then
+            echo "Webhook triggered successfully (HTTP $HTTP_CODE)"
+          else
+            echo "Webhook returned HTTP $HTTP_CODE"
+          fi
+
+      - name: Wait for deployment
+        run: |
+          echo "Waiting 60 seconds for Azure to pull and deploy..."
+          sleep 60
+          echo "Deployment should be complete. Check your app!"
+          echo "Deployed version: ${{ steps.tag.outputs.TAG }}"
