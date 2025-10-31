@@ -1,0 +1,204 @@
+package com.unimagdalena.conectaCiudad.services;
+
+import com.unimagdalena.conectaCiudad.Dto.menu.MenuItemDto;
+import com.unimagdalena.conectaCiudad.Dto.menu.MenuResponseDto;
+import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class MenuService {
+    
+    private final UserRepository userRepository;
+    
+    private static final Map<String, Integer> ROLE_HIERARCHY = Map.of(
+        "ADMIN", 1,
+        "CURATOR", 2,
+        "LIDER_COMUNITARIO", 3,
+        "CIUDADANO", 4
+    );
+    
+    public MenuResponseDto getCompleteMenuForUser(String username) {
+        User user = findUserByUsername(username);
+        
+        List<MenuItemDto> menu = buildMenuForUser(user);
+        
+        MenuResponseDto.UserInfoDto userInfo = new MenuResponseDto.UserInfoDto(
+            user.getEmail(),
+            user.getName(),
+            getPrimaryRole(user),
+            null 
+        );
+        
+        return new MenuResponseDto(userInfo, menu);
+    }
+    
+    @Cacheable(value = "userMenu", key = "#username")
+    public List<MenuItemDto> getMenuForUser(String username) {
+        User user = findUserByUsername(username);
+        return buildMenuForUser(user);
+    }
+    
+    private List<MenuItemDto> buildMenuForUser(User user) {
+        log.debug("Building menu for user: {}", user.getEmail());
+        
+        List<MenuItemDto> menu = new ArrayList<>();
+        int order = 1;
+        
+        menu.add(new MenuItemDto("Inicio", "/dashboard", "Home", null, order++));
+        
+        String primaryRole = getHighestPriorityRole(user);
+        
+        switch (primaryRole) {
+            case "ADMIN" -> {
+                menu.addAll(createAdminMenu(order));
+                order += 10;
+            }
+            case "CURATOR" -> {
+                menu.addAll(createCuratorMenu(order));
+                order += 10;
+            }
+            case "LIDER_COMUNITARIO" -> {
+                menu.addAll(createCommunityLeaderMenu(order));
+                order += 10;
+            }
+            case "CIUDADANO" -> {
+                menu.addAll(createCitizenMenu(order));
+                order += 10;
+            }
+        }
+        
+        menu.add(new MenuItemDto("Mi Perfil", "/profile", "User", false, 99, List.of()));
+        
+        return menu;
+    }
+    
+    private List<MenuItemDto> createAdminMenu(int startOrder) {
+        List<MenuItemDto> menu = new ArrayList<>();
+        
+        List<MenuItemDto> userMgmt = List.of(
+            new MenuItemDto("Todos los Usuarios", "/admin/users", "Users"),
+            new MenuItemDto("Roles y Permisos", "/admin/roles", "Shield"),
+            new MenuItemDto("Actividad Reciente", "/admin/activity", "Activity")
+        );
+        menu.add(new MenuItemDto("Gestión de Usuarios", "#", "Users", userMgmt));
+        
+        List<MenuItemDto> projectMgmt = List.of(
+            new MenuItemDto("Todos los Proyectos", "/admin/projects", "FolderKanban"),
+            new MenuItemDto("Estados", "/admin/projects/status", "ListChecks")
+        );
+        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projectMgmt));
+        
+        List<MenuItemDto> voting = List.of(
+            new MenuItemDto("Procesos Activos", "/admin/voting/active", "Vote"),
+            new MenuItemDto("Auditoría", "/admin/voting/audit", "ShieldCheck")
+        );
+        menu.add(new MenuItemDto("Votaciones", "#", "Vote", voting));
+        
+        List<MenuItemDto> comms = List.of(
+            new MenuItemDto("Envío Masivo", "/admin/notifications", "Send"),
+            new MenuItemDto("Historial", "/admin/communications/history", "History")
+        );
+        menu.add(new MenuItemDto("Comunicaciones", "#", "MessageSquare", comms));
+        
+        List<MenuItemDto> config = List.of(
+            new MenuItemDto("Seguridad", "/admin/config/security", "Lock")
+        );
+        menu.add(new MenuItemDto("Configuración", "#", "Settings", config));
+        
+        return menu;
+    }
+    
+    private List<MenuItemDto> createCuratorMenu(int startOrder) {
+        List<MenuItemDto> menu = new ArrayList<>();
+        
+        List<MenuItemDto> reviewQueue = List.of(
+            new MenuItemDto("Pendientes", "/review/pending", "Clock", true, 1, List.of()),
+            new MenuItemDto("En Proceso", "/review/in-progress", "Loader"),
+            new MenuItemDto("Historial", "/review/history", "History")
+        );
+        menu.add(new MenuItemDto("Cola de Revisión", "#", "ClipboardCheck", reviewQueue));
+        
+        List<MenuItemDto> projects = List.of(
+            new MenuItemDto("Aprobados", "/projects/approved", "CheckCircle"),
+            new MenuItemDto("Rechazados", "/projects/rejected", "XCircle"),
+            new MenuItemDto("Todos", "/projects/all", "List")
+        );
+        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projects));
+        
+        menu.add(new MenuItemDto("Auditoría", "/audit", "Shield"));
+        menu.add(new MenuItemDto("Reportes", "/reports", "FileText"));
+        
+        return menu;
+    }
+    
+    private List<MenuItemDto> createCommunityLeaderMenu(int startOrder) {
+        List<MenuItemDto> menu = new ArrayList<>();
+        
+        List<MenuItemDto> myProjects = List.of(
+            new MenuItemDto("Crear Proyecto", "/projects/create", "PlusCircle", true, 1, List.of()),
+            new MenuItemDto("En Revisión", "/projects/review", "Clock"),
+            new MenuItemDto("Publicados", "/projects/published", "Globe"),
+            new MenuItemDto("Devueltos", "/projects/returned", "RotateCcw"),
+            new MenuItemDto("Todos", "/projects/my-projects", "FolderOpen")
+        );
+        menu.add(new MenuItemDto("Mis Proyectos", "#", "FolderKanban", myProjects));
+        
+        menu.add(new MenuItemDto("Explorar Proyectos", "/projects/explore", "Search"));
+        menu.add(new MenuItemDto("Resultados", "/results", "BarChart3"));
+        
+        return menu;
+    }
+  
+    private List<MenuItemDto> createCitizenMenu(int startOrder) {
+        List<MenuItemDto> menu = new ArrayList<>();
+        
+        List<MenuItemDto> projects = List.of(
+            new MenuItemDto("Explorar", "/projects", "Search"),
+            new MenuItemDto("Mis Votaciones", "/my-votes", "Vote")
+        );
+        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projects));
+        
+        menu.add(new MenuItemDto("Votar", "/vote", "Vote"));
+        
+        return menu;
+    }
+    
+    private String getHighestPriorityRole(User user) {
+        return user.getRoles().stream()
+            .map(role -> role.getName().toUpperCase())
+            .filter(ROLE_HIERARCHY::containsKey)
+            .min((role1, role2) -> 
+                ROLE_HIERARCHY.get(role1).compareTo(ROLE_HIERARCHY.get(role2))
+            )
+            .orElse("CIUDADANO"); 
+    }
+    
+    
+    private String getPrimaryRole(User user) {
+        String role = getHighestPriorityRole(user);
+        
+        return switch (role) {
+            case "ADMIN" -> "Administrador";
+            case "CURATOR" -> "Curador";
+            case "LIDER_COMUNITARIO" -> "Líder Comunitario";
+            case "CIUDADANO" -> "Ciudadano";
+            default -> "Usuario";
+        };
+    }
+    
+    private User findUserByUsername(String username) {
+        return userRepository.findByEmailOrNationalId(username, username)
+            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+    }
+}
