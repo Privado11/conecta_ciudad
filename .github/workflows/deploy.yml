@@ -3,69 +3,46 @@ name: Build and Deploy to Azure
 on:
   push:
     branches:
-      - main
-      - deploy  # Se ejecuta cuando haces push a la rama deploy
+      - deploy
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: maven
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+          cache: maven
 
-    - name: Build with Maven
-      run: mvn clean package -DskipTests
+      - name: Build with Maven
+        run: mvn clean package -DskipTests
 
-    - name: Login to Azure Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ secrets.ACR_LOGIN_SERVER }}
-        username: ${{ secrets.ACR_USERNAME }}
-        password: ${{ secrets.ACR_PASSWORD }}
+      - name: Build Docker image
+        run: docker build -t conecta-ciudad:latest .
 
-    - name: Build and push Docker image
-      run: |
-        docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/myapp:${{ github.sha }} .
-        docker build -t ${{ secrets.ACR_LOGIN_SERVER }}/myapp:latest .
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/myapp:${{ github.sha }}
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/myapp:latest
+      - name: Login to Azure Container Registry
+        run: |
+          echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_NAME }}.azurecr.io \
+            --username ${{ secrets.ACR_USERNAME }} \
+            --password-stdin
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Tag and Push Docker image
+        run: |
+          docker tag conecta-ciudad:latest ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
 
-    # Opción 1: Deploy a Azure Container Instance
-    - name: Deploy to Azure Container Instance
-      uses: azure/aci-deploy@v1
-      with:
-        resource-group: myResourceGroup
-        name: myapp-container
-        image: ${{ secrets.ACR_LOGIN_SERVER }}/myapp:latest
-        registry-login-server: ${{ secrets.ACR_LOGIN_SERVER }}
-        registry-username: ${{ secrets.ACR_USERNAME }}
-        registry-password: ${{ secrets.ACR_PASSWORD }}
-        dns-name-label: myapp-unique-name
-        ports: 8080
-        cpu: 1
-        memory: 1.5
-
-    # Opción 2: Deploy a Azure App Service (comenta la opción 1 si usas esta)
-    # - name: Deploy to Azure Web App
-    #   uses: azure/webapps-deploy@v2
-    #   with:
-    #     app-name: myapp-webapp
-    #     images: ${{ secrets.ACR_LOGIN_SERVER }}/myapp:latest
-
-    - name: Azure Logout
-      run: az logout
+      - name: Azure CLI Login and Restart WebApp
+        run: |
+          az login --service-principal \
+            -u ${{ secrets.ACR_USERNAME }} \
+            -p ${{ secrets.ACR_PASSWORD }} \
+            --tenant ${{ secrets.AZURE_TENANT_ID }}
+          az webapp restart \
+            --name ${{ secrets.APP_NAME }} \
+            --resource-group ${{ secrets.RESOURCE_GROUP }}
