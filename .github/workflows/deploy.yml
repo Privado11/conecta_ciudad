@@ -37,12 +37,6 @@ jobs:
           docker tag conecta-ciudad:latest ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
           docker push ${{ secrets.ACR_NAME }}.azurecr.io/conecta-ciudad:latest
 
-      - name: Azure CLI Login and Restart WebApp
+      - name: Trigger Azure WebApp Update
         run: |
-          az login --service-principal \
-            -u ${{ secrets.ACR_USERNAME }} \
-            -p ${{ secrets.ACR_PASSWORD }} \
-            --tenant ${{ secrets.AZURE_TENANT_ID }}
-          az webapp restart \
-            --name ${{ secrets.APP_NAME }} \
-            --resource-group ${{ secrets.RESOURCE_GROUP }}
+          curl -X POST '${{ secrets.WEBHOOK_URL }}'
