@@ -142,19 +142,37 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto) {
-        return projectRepository.findById(id).map(existingProject -> {
-            existingProject.setName(projectSaveDto.name());
-            existingProject.setObjectives(projectSaveDto.objectives());
-            existingProject.setBeneficiaryPopulations(projectSaveDto.beneficiaryPopulations());
-            existingProject.setBudgets(projectSaveDto.budgets());
-            existingProject.setStartAt(projectSaveDto.startAt());
-            existingProject.setEndAt(projectSaveDto.endAt());
-            
-            return projectRepository.save(existingProject);
-        }).map(projectMapper::toDto)
-        .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long creatorId) {
+    Project existingProject = projectRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+    
+
+    if (!Objects.equals(existingProject.getCreator().getId(), creatorId)) {
+        throw new AccessDeniedException("Solo el creador del proyecto puede editarlo");
     }
+    
+   
+    if (projectSaveDto.startAt() != null && projectSaveDto.endAt() != null) {
+        if (projectSaveDto.endAt().isBefore(projectSaveDto.startAt())) {
+            throw new IllegalArgumentException("La fecha de fin debe ser posterior a la fecha de inicio");
+        }
+    }
+    
+    
+    existingProject.setName(projectSaveDto.name());
+    existingProject.setObjectives(projectSaveDto.objectives());
+    existingProject.setBeneficiaryPopulations(projectSaveDto.beneficiaryPopulations());
+    existingProject.setBudgets(projectSaveDto.budgets());
+    existingProject.setStartAt(projectSaveDto.startAt());
+    existingProject.setEndAt(projectSaveDto.endAt());
+    
+    Project updatedProject = projectRepository.save(existingProject);
+    
+    
+    logAction(creatorId, "PROJECT_UPDATED", "Proyecto actualizado con id " + id);
+    
+    return attachReview(projectMapper.toDto(updatedProject));
+}
 
     @Override
     public void deleteProject(Long id) {
@@ -248,6 +266,15 @@ public class ProjectServiceImpl implements ProjectService {
             .toList();
     }
 
+    @Override
+    public List<ProjectDto> findReadyToPublish() {
+        return projectRepository.findByStatus(ProjectStatus.LISTO_PARA_PUBLICAR)
+            .stream()
+            .map(projectMapper::toDto)
+            .map(this::attachReview)
+            .toList();
+    }
+    
     @Override
     public ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId) {
         Project project = projectRepository.findById(projectId)

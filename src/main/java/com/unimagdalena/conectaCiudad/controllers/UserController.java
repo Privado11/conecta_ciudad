@@ -19,24 +19,35 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
-
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
-@Tag(name = "Users", description = "Operaciones para gestión de usuarios")
+@Tag(name = "Users", description = "API para gestión completa de usuarios del sistema ConectaCiudad")
 public class UserController {
     
     private final UserService userService;
     
     @GetMapping("/{id}")
     @Operation(
-        summary = "Obtener usuario por ID",
-        description = "Obtiene los detalles de un usuario específico por su ID"
+        summary = "Consultar usuario por su identificador único",
+        description = """
+            Obtiene los detalles completos de un usuario específico mediante su ID numérico.
+            
+            **Información retornada:**
+            - Datos personales (nombre, email, teléfono)
+            - Número de identificación nacional
+            - Lista de roles asignados al usuario
+            - Estado de la cuenta (activo/inactivo, según implementación)
+            
+            **Acceso:** Endpoint público (cualquier usuario autenticado puede consultar)
+            
+            **Nota:** La contraseña nunca se retorna por seguridad, solo información pública del perfil.
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Usuario encontrado",
+            description = "Usuario encontrado exitosamente en la base de datos",
             content = @Content(
                 mediaType = "application/json",
                 schema = @Schema(implementation = UserDto.class),
@@ -57,26 +68,61 @@ public class UserController {
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
-            content = @Content
+            description = "No existe un usuario con el ID especificado en la base de datos",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 404,
+                        "error": "Not Found",
+                        "message": "No se encontró el usuario con ID: 999"
+                    }
+                    """
+                )
+            )
         )
     })
     public ResponseEntity<UserDto> getById(
-            @Parameter(description = "ID del usuario a buscar", example = "1")
+            @Parameter(
+                description = "Identificador único del usuario en la base de datos (número entero positivo)",
+                example = "1",
+                required = true
+            )
             @PathVariable Long id) {
         return ResponseEntity.ok(userService.findById(id));
     }
 
-    
     @GetMapping
     @Operation(
-        summary = "Buscar/Listar usuarios",
-        description = "Filtra usuarios por nombre, email o número de identificación. Si no se especifican filtros, retorna todos los usuarios."
+        summary = "Buscar y listar usuarios con filtros opcionales",
+        description = """
+            Permite buscar usuarios aplicando diferentes criterios de filtrado.
+            Si no se especifica ningún filtro, retorna todos los usuarios del sistema.
+            
+            **Criterios de búsqueda disponibles:**
+            - **Por email:** Búsqueda exacta del correo electrónico (case-sensitive para email)
+            - **Por nombre:** Búsqueda parcial case-insensitive (ej: "walter" encuentra "Walter Jiménez")
+            - **Por cédula/ID nacional:** Búsqueda exacta del número de identificación
+            - **Sin filtros:** Retorna el listado completo de usuarios registrados
+            
+            **Prioridad de filtros:** Si se envían múltiples parámetros, se prioriza en este orden:
+            1. email (más específico)
+            2. name (búsqueda parcial)
+            3. nationalId (búsqueda exacta)
+            
+            **Acceso:** Endpoint público (cualquier usuario autenticado puede consultar)
+            
+            **Casos de uso:**
+            - Buscar usuario por correo para verificar si existe: `?email=usuario@example.com`
+            - Buscar líderes comunitarios por nombre: `?name=walter`
+            - Verificar usuario por cédula: `?nationalId=1234567890`
+            - Listar todos los usuarios: sin parámetros
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Lista de usuarios que coinciden con los criterios de búsqueda",
+            description = "Lista de usuarios que coinciden con los criterios de búsqueda (puede ser vacía o un objeto único si se busca por email)",
             content = @Content(
                 mediaType = "application/json",
                 schema = @Schema(implementation = UserDto[].class),
@@ -85,20 +131,28 @@ public class UserController {
                     value = """
                     [
                         {
-                             "id": 1,
-                        "name": "Walter Jiménez",
-                        "email": "walter@example.com",
-                        "nationalId": "1234567890",
-                        "phone": "+573001234567",
-                        "roles": ["LIDER_COMUNITARIO"]
+                            "id": 1,
+                            "name": "Walter Jiménez",
+                            "email": "walter@example.com",
+                            "nationalId": "1234567890",
+                            "phone": "+573001234567",
+                            "roles": ["LIDER_COMUNITARIO"]
                         },
                         {
                             "id": 2,
                             "name": "Nicole Hernández",
                             "email": "nicole@example.com",
-                            "nationalId": "1234567890",
-                            "phone": "+573001234567",
+                            "nationalId": "0987654321",
+                            "phone": "+573009876543",
                             "roles": ["CURATOR"]
+                        },
+                        {
+                            "id": 3,
+                            "name": "Carlos Rodríguez",
+                            "email": "carlos@example.com",
+                            "nationalId": "5555666777",
+                            "phone": "+573005556667",
+                            "roles": ["ADMIN", "CURATOR"]
                         }
                     ]
                     """
@@ -107,13 +161,33 @@ public class UserController {
         )
     })
     public ResponseEntity<?> searchUsers(
-            @Parameter(description = "Filtrar por nombre (búsqueda parcial)", example = "Walter")
+            @Parameter(
+                description = """
+                    Filtrar por nombre del usuario (búsqueda parcial, case-insensitive).
+                    Ejemplo: 'walter' encontrará 'Walter Jiménez', 'Walter Smith', etc.
+                    """,
+                example = "Walter"
+            )
             @RequestParam(required = false) String name,
             
-            @Parameter(description = "Filtrar por email exacto", example = "walter@example.com")
+            @Parameter(
+                description = """
+                    Filtrar por correo electrónico (búsqueda exacta).
+                    Debe coincidir exactamente con el email registrado en la base de datos.
+                    Útil para verificar si un email ya está en uso antes de registrar un nuevo usuario.
+                    """,
+                example = "walter@example.com"
+            )
             @RequestParam(required = false) String email,
             
-            @Parameter(description = "Filtrar por número de identificación", example = "1234567890")
+            @Parameter(
+                description = """
+                    Filtrar por número de identificación nacional/cédula (búsqueda exacta).
+                    Debe coincidir exactamente con el documento registrado.
+                    Útil para búsquedas de identidad y verificación de usuarios.
+                    """,
+                example = "1234567890"
+            )
             @RequestParam(required = false) String nationalId) {
 
         if (email != null) {
@@ -127,105 +201,259 @@ public class UserController {
         }
     }
 
-
     @PutMapping("/{id}")
     @Operation(
-        summary = "Actualizar usuario",
-        description = "Actualiza los datos de un usuario existente"
+        summary = "Actualizar datos de un usuario existente",
+        description = """
+            Permite modificar la información personal de un usuario registrado.
+            
+            **Campos actualizables:**
+            - name: Nombre completo del usuario
+            - email: Correo electrónico (debe ser único en el sistema)
+            - nationalId: Número de identificación nacional
+            - phone: Número telefónico de contacto
+            - password: Contraseña (será encriptada automáticamente)
+            
+            **Restricciones:**
+            - El email debe ser único; no puede coincidir con otro usuario existente
+            - El nationalId debe ser único en el sistema
+            - No se pueden actualizar los roles directamente (usar endpoints específicos: POST/DELETE /roles)
+            - La contraseña se encripta automáticamente antes de guardarse
+            
+            **Permisos:**
+            - Un usuario puede actualizar su propia información
+            - Un ADMIN puede actualizar la información de cualquier usuario
+            
+            **Nota:** Para cambios de roles, usar los endpoints `/users/{id}/roles/{role}`
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
             description = "Usuario actualizado exitosamente",
-            content = @Content(schema = @Schema(implementation = UserDto.class))
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserDto.class),
+                examples = @ExampleObject(
+                    name = "updatedUser",
+                    value = """
+                    {
+                        "id": 1,
+                        "name": "Walter Jiménez Actualizado",
+                        "email": "walter.nuevo@example.com",
+                        "nationalId": "1234567890",
+                        "phone": "+573001234567",
+                        "roles": ["LIDER_COMUNITARIO"]
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "Datos de entrada inválidos",
-            content = @Content
+            description = "Datos de entrada inválidos (email duplicado, formato incorrecto, campos requeridos vacíos)",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 400,
+                        "error": "Bad Request",
+                        "message": "El email ya está en uso por otro usuario"
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
+            description = "Usuario no encontrado con el ID especificado",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "No autorizado - Solo puedes actualizar tu propia información o debes ser ADMIN",
             content = @Content
         )
     })
     public ResponseEntity<UserDto> updateUser(
-            @Parameter(description = "ID del usuario a actualizar", example = "1")
+            @Parameter(
+                description = "ID único del usuario a actualizar (debe existir en la base de datos)",
+                example = "1",
+                required = true
+            )
             @PathVariable Long id, 
             @Valid @RequestBody UserSaveDto userDto) {
         return ResponseEntity.ok(userService.updateUser(id, userDto));
     }
 
-  
     @DeleteMapping("/{id}")
     @Operation(
-        summary = "Eliminar usuario",
-        description = "Elimina un usuario por su ID. Solo usuarios con rol ADMIN pueden eliminar usuarios."
+        summary = "Eliminar usuario del sistema",
+        description = """
+            Elimina permanentemente un usuario de la base de datos.
+            
+            **Restricciones de seguridad:**
+            - Solo usuarios con rol ADMIN pueden eliminar usuarios
+            - No se puede eliminar el propio usuario ADMIN (evitar quedar sin acceso)
+            - Considerar que eliminar un usuario puede afectar proyectos asociados
+            
+            **Advertencias:**
+            - Esta es una operación destructiva e irreversible
+            - Si el usuario tiene proyectos creados, considerar:
+              * Reasignar proyectos a otro usuario antes de eliminar
+              * Implementar "soft delete" (marcar como inactivo) en lugar de borrado físico
+            - Si el usuario es curador, sus proyectos asignados quedarán sin curador
+            
+            **Recomendación:** Implementar desactivación de cuenta en lugar de eliminación física 
+            para mantener integridad referencial e historial.
+            
+            **Efecto:**
+            - Elimina el registro del usuario de la tabla users
+            - Puede causar problemas de integridad referencial si hay proyectos asociados
+            - Se pierden todos los datos y el historial del usuario
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Usuario eliminado exitosamente",
+            description = "Usuario eliminado exitosamente del sistema",
             content = @Content(
                 mediaType = "text/plain",
-                examples = @ExampleObject("User deleted successfully")
+                examples = @ExampleObject(value = "\"User deleted successfully\"")
             )
         ),
         @ApiResponse(
             responseCode = "403",
-            description = "No autorizado - Se requiere rol ADMIN",
-            content = @Content
+            description = "No autorizado - Se requiere rol ADMIN para eliminar usuarios",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 403,
+                        "error": "Forbidden",
+                        "message": "Acceso denegado. Se requiere rol ADMIN"
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
+            description = "Usuario no encontrado con el ID especificado",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "No se puede eliminar el usuario (ej: tiene proyectos activos, es el último ADMIN, etc.)",
             content = @Content
         )
     })
     public ResponseEntity<String> deleteUser(
-            @Parameter(description = "ID del usuario a eliminar", example = "1")
+            @Parameter(
+                description = "ID único del usuario a eliminar (operación irreversible)",
+                example = "1",
+                required = true
+            )
             @PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok("User deleted successfully");
     }
 
-    
     @PostMapping("/{id}/roles/{role}")
     @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
-        summary = "Agregar rol a usuario",
-        description = "Agrega un rol a un usuario existente. Solo usuarios con rol ADMIN pueden realizar esta acción."
+        summary = "Asignar rol adicional a un usuario",
+        description = """
+            Agrega un rol nuevo a un usuario existente. Los usuarios pueden tener múltiples roles simultáneamente.
+            
+            **Restricciones de seguridad:**
+            - Solo usuarios con rol ADMIN pueden asignar roles
+            - El usuario objetivo debe existir en la base de datos
+            - El rol debe ser uno de los valores válidos del sistema
+            
+            **Roles disponibles en el sistema:**
+            - **ADMIN:** Acceso total al sistema, gestión de usuarios y proyectos
+            - **CURATOR:** Revisión y aprobación de proyectos comunitarios
+            - **LIDER_COMUNITARIO:** Creación y gestión de proyectos comunitarios
+            
+            **Casos de uso:**
+            - Promover un líder comunitario a curador: agregar rol CURATOR
+            - Dar permisos administrativos temporales: agregar rol ADMIN
+            - Usuario con múltiples responsabilidades: puede tener CURATOR + LIDER_COMUNITARIO
+            
+            **Comportamiento:**
+            - Si el usuario ya tiene el rol, la operación falla con error 400
+            - Los roles son acumulativos (no reemplazan roles existentes)
+            - El cambio es inmediato y afecta las siguientes autenticaciones
+            
+            **Nota:** Para remover roles, usar el endpoint DELETE `/users/{id}/roles/{role}`
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Rol agregado exitosamente",
-            content = @Content(schema = @Schema(implementation = UserDto.class))
+            description = "Rol agregado exitosamente al usuario. Retorna el usuario con su lista actualizada de roles.",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserDto.class),
+                examples = @ExampleObject(
+                    name = "userWithNewRole",
+                    value = """
+                    {
+                        "id": 1,
+                        "name": "Walter Jiménez",
+                        "email": "walter@example.com",
+                        "nationalId": "1234567890",
+                        "phone": "+573001234567",
+                        "roles": ["LIDER_COMUNITARIO", "CURATOR"]
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "400",
             description = "Rol no válido o el usuario ya tiene el rol asignado",
-            content = @Content
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 400,
+                        "error": "Bad Request",
+                        "message": "El usuario ya tiene el rol CURATOR asignado"
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "403",
-            description = "No autorizado - Se requiere rol ADMIN",
+            description = "No autorizado - Se requiere rol ADMIN para asignar roles",
             content = @Content
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
+            description = "Usuario no encontrado con el ID especificado",
             content = @Content
         )
     })
     public ResponseEntity<UserDto> addRole(
-            @Parameter(description = "ID del usuario", example = "1")
+            @Parameter(
+                description = "ID único del usuario al que se le asignará el rol",
+                example = "1",
+                required = true
+            )
             @PathVariable Long id, 
             
             @Parameter(
-                description = "Rol a agregar (valores posibles: ADMIN, CURATOR, LIDER_COMUNITARIO)", 
-                example = "CURATOR"
+                description = """
+                    Rol a agregar al usuario. Valores válidos:
+                    - ADMIN: Administrador del sistema
+                    - CURATOR: Curador de proyectos
+                    - LIDER_COMUNITARIO: Líder comunitario
+                    """,
+                example = "CURATOR",
+                required = true
             )
             @PathVariable String role) {
         return ResponseEntity.ok(userService.addRole(id, role));
@@ -234,38 +462,103 @@ public class UserController {
     @DeleteMapping("/{id}/roles/{role}")
     @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
-        summary = "Eliminar rol de usuario",
-        description = "Elimina un rol de un usuario existente. Solo usuarios con rol ADMIN pueden realizar esta acción."
+        summary = "Remover rol de un usuario",
+        description = """
+            Elimina un rol específico de un usuario existente. El usuario puede mantener otros roles asignados.
+            
+            **Restricciones de seguridad:**
+            - Solo usuarios con rol ADMIN pueden remover roles
+            - El usuario objetivo debe existir en la base de datos
+            - El rol debe estar actualmente asignado al usuario
+            - No se puede remover el último rol de un usuario (debe tener al menos uno)
+            
+            **Roles que se pueden remover:**
+            - ADMIN: Quita permisos administrativos
+            - CURATOR: Quita capacidad de revisar proyectos
+            - LIDER_COMUNITARIO: Quita capacidad de crear proyectos
+            
+            **Casos de uso:**
+            - Degradar permisos temporales de ADMIN
+            - Remover responsabilidades de curador por carga de trabajo
+            - Desactivar capacidad de crear proyectos temporalmente
+            - Cambiar el rol principal de un usuario
+            
+            **Consideraciones importantes:**
+            - Si se remueve CURATOR, los proyectos asignados quedarán sin curador
+            - Si se remueve LIDER_COMUNITARIO, el usuario no podrá crear nuevos proyectos
+            - El cambio es inmediato y afecta las siguientes autenticaciones
+            - Considerar reasignar responsabilidades antes de remover roles críticos
+            
+            **Restricción:** No se puede dejar un usuario sin roles (debe tener al menos uno activo)
+            """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Rol eliminado exitosamente",
-            content = @Content(schema = @Schema(implementation = UserDto.class))
+            description = "Rol removido exitosamente. Retorna el usuario con su lista actualizada de roles.",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserDto.class),
+                examples = @ExampleObject(
+                    name = "userWithRemovedRole",
+                    value = """
+                    {
+                        "id": 1,
+                        "name": "Walter Jiménez",
+                        "email": "walter@example.com",
+                        "nationalId": "1234567890",
+                        "phone": "+573001234567",
+                        "roles": ["LIDER_COMUNITARIO"]
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "Rol no válido o el usuario no tiene el rol asignado",
-            content = @Content
+            description = "Rol no válido, el usuario no tiene el rol asignado, o es el último rol del usuario",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 400,
+                        "error": "Bad Request",
+                        "message": "El usuario no tiene el rol CURATOR asignado"
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "403",
-            description = "No autorizado - Se requiere rol ADMIN",
+            description = "No autorizado - Se requiere rol ADMIN para remover roles",
             content = @Content
         ),
         @ApiResponse(
             responseCode = "404",
-            description = "Usuario no encontrado",
+            description = "Usuario no encontrado con el ID especificado",
             content = @Content
         )
     })
     public ResponseEntity<UserDto> removeRole(
-            @Parameter(description = "ID del usuario", example = "1")
+            @Parameter(
+                description = "ID único del usuario al que se le removerá el rol",
+                example = "1",
+                required = true
+            )
             @PathVariable Long id, 
             
             @Parameter(
-                description = "Rol a eliminar (valores posibles: ADMIN, CURATOR, LIDER_COMUNITARIO)", 
-                example = "CURATOR"
+                description = """
+                    Rol a eliminar del usuario. Valores válidos:
+                    - ADMIN: Administrador del sistema
+                    - CURATOR: Curador de proyectos
+                    - LIDER_COMUNITARIO: Líder comunitario
+                    
+                    El rol debe estar actualmente asignado al usuario.
+                    """,
+                example = "CURATOR",
+                required = true
             )
             @PathVariable String role) {
         return ResponseEntity.ok(userService.removeRole(id, role));
@@ -274,21 +567,58 @@ public class UserController {
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
-        summary = "Crear usuario (Admin)",
-        description = "Crea un nuevo usuario con roles específicos. Solo usuarios con rol ADMIN pueden realizar esta acción.",
-        requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
-            description = "Datos del usuario a crear",
-            required = true,
+        summary = "Crear nuevo usuario con roles asignados (Admin)",
+        description = """
+            Permite a un administrador crear un nuevo usuario en el sistema con roles específicos asignados desde el inicio.
+            
+            **Restricciones de seguridad:**
+            - Solo usuarios con rol ADMIN pueden crear usuarios mediante este endpoint
+            - Para registro público de usuarios, existe otro endpoint sin autenticación
+            
+            **Campos requeridos:**
+            - name: Nombre completo del usuario
+            - email: Correo electrónico único en el sistema
+            - password: Contraseña (será encriptada automáticamente)
+            - nationalId: Número de identificación nacional único
+            - phone: Número telefónico de contacto
+            - roles: Array con al menos un rol del sistema
+            
+            **Validaciones automáticas:**
+            - El email debe ser único (no puede existir otro usuario con el mismo email)
+            - El nationalId debe ser único en el sistema
+            - La contraseña se encripta con bcrypt antes de almacenarse
+            - Los roles deben ser valores válidos: ADMIN, CURATOR, LIDER_COMUNITARIO
+            - El formato del email debe ser válido
+            - El teléfono debe tener formato válido (según configuración)
+            
+            **Roles disponibles:**
+            - **ADMIN:** Acceso completo al sistema
+            - **CURATOR:** Puede revisar y aprobar proyectos
+            - **LIDER_COMUNITARIO:** Puede crear y gestionar proyectos comunitarios
+            
+            **Casos de uso:**
+            - Crear cuenta administrativa para nuevo empleado
+            - Registrar curadores del sistema
+            - Pre-registrar líderes comunitarios verificados
+            - Crear usuarios con múltiples roles simultáneamente
+            
+            **Nota:** Para registro público de usuarios (sin autenticación), usar el endpoint de registro público.
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Usuario creado exitosamente con los roles asignados. La contraseña ha sido encriptada.",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = UserSaveDto.class),
+                schema = @Schema(implementation = UserDto.class),
                 examples = @ExampleObject(
-                    name = "userRequest",
+                    name = "createdUser",
                     value = """
                     {
+                        "id": 10,
                         "name": "Nuevo Usuario",
                         "email": "nuevo@example.com",
-                        "password": "contraseñaSegura123",
                         "nationalId": "9876543210",
                         "phone": "+573001234567",
                         "roles": ["LIDER_COMUNITARIO"]
@@ -296,23 +626,36 @@ public class UserController {
                     """
                 )
             )
-        )
-    )
-    @ApiResponses({
-        @ApiResponse(
-            responseCode = "200",
-            description = "Usuario creado exitosamente",
-            content = @Content(schema = @Schema(implementation = UserDto.class))
         ),
         @ApiResponse(
             responseCode = "400",
-            description = "Datos de entrada inválidos o email ya registrado",
-            content = @Content
+            description = "Datos de entrada inválidos: email duplicado, formato incorrecto, campos requeridos vacíos, o roles inválidos",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 400,
+                        "error": "Bad Request",
+                        "message": "El email nuevo@example.com ya está registrado en el sistema"
+                    }
+                    """
+                )
+            )
         ),
         @ApiResponse(
             responseCode = "403",
-            description = "No autorizado - Se requiere rol ADMIN",
-            content = @Content
+            description = "No autorizado - Se requiere rol ADMIN para crear usuarios mediante este endpoint",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 403,
+                        "error": "Forbidden",
+                        "message": "Acceso denegado. Se requiere rol ADMIN"
+                    }
+                    """
+                )
+            )
         )
     })
     public ResponseEntity<UserDto> createUserAdmin(

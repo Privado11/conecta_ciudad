@@ -13,10 +13,11 @@ public interface ProjectService {
     List<ProjectDto> findByStatus(ProjectStatus status);
     List<ProjectDto> findByCreatorId(Long creatorId);
     ProjectDto saveProject(ProjectSaveDto projectSaveDto, Long creatorId);
-    ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto);
+    ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long creatorId);
     void deleteProject(Long id);
     ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId);
     ProjectDto addObservations(Long projectId, Long curatorId, String notes);
     ProjectDto approveProject(Long projectId, Long curatorId);
-    java.util.List<ProjectDto> findByCurator(Long curatorId, ProjectStatus status);
+    List<ProjectDto> findByCurator(Long curatorId, ProjectStatus status);
+    List<ProjectDto> findReadyToPublish(); 
 }
