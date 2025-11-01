@@ -77,7 +77,7 @@ public CorsConfigurationSource corsConfigurationSource() {
 
    
     configuration.setAllowedOrigins(Arrays.asList(
-        "https://participacion-ciudadana.vercel.app", 
+        "https://participacion-ciudadana-aze8f3ezf0ene3g2.eastus2-01.azurewebsites.net", 
         "http://localhost:5173" 
     ));
 
