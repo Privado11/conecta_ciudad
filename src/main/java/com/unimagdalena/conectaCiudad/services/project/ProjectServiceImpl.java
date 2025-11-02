@@ -16,6 +16,7 @@ import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.entities.Action;
+import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
@@ -132,11 +133,11 @@ public class ProjectServiceImpl implements ProjectService {
                     .dueAt(LocalDateTime.now().plusDays(7))
                     .build();
                 reviewRepository.save(review);
-                logAction(chosenCurator.getId(), "CURATOR_ASSIGNED", "Curator asignado al proyecto " + savedProject.getId());
+                logAction(chosenCurator.getId(), ProjectActionType.CURATOR_ASSIGNED, "Curator asignado al proyecto " + savedProject.getId());
             }
         }
 
-        logAction(creator.getId(), "PROJECT_CREATED", "Proyecto creado con id " + savedProject.getId());
+        logAction(creator.getId(), ProjectActionType.PROJECT_CREATED, "Proyecto creado con id " + savedProject.getId());
 
         return attachReview(projectMapper.toDto(savedProject));
     }
@@ -168,8 +169,7 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
     
     Project updatedProject = projectRepository.save(existingProject);
     
-    
-    logAction(creatorId, "PROJECT_UPDATED", "Proyecto actualizado con id " + id);
+        logAction(creatorId, ProjectActionType.PROJECT_UPDATED, "Proyecto actualizado con id " + id);
     
     return attachReview(projectMapper.toDto(updatedProject));
 }
@@ -230,7 +230,7 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
         reviewRepository.save(review);
         project.setStatus(ProjectStatus.OBSERVACIONES);
         projectRepository.save(project);
-        logAction(curatorId, "PROJECT_OBSERVATIONS_ADDED", "Observaciones registradas para proyecto " + projectId);
+        logAction(curatorId, ProjectActionType.PROJECT_OBSERVATIONS_ADDED, "Observaciones registradas para proyecto " + projectId);
         return attachReview(projectMapper.toDto(project));
     }
 
@@ -250,7 +250,7 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
         reviewRepository.save(review);
         project.setStatus(ProjectStatus.LISTO_PARA_PUBLICAR);
         projectRepository.save(project);
-        logAction(curatorId, "PROJECT_APPROVED", "Proyecto " + projectId + " aprobado (listo para publicar)");
+        logAction(curatorId, ProjectActionType.PROJECT_APPROVED, "Proyecto " + projectId + " aprobado (listo para publicar)");
         return attachReview(projectMapper.toDto(project));
     }
 
@@ -306,16 +306,17 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
             review.setCurator(newCurator);
         }
         reviewRepository.save(review);
-        logAction(adminId, "CURATOR_REASSIGNED", "Curador reasignado a proyecto " + projectId + " -> usuario " + curatorId);
+        logAction(adminId, ProjectActionType.CURATOR_REASSIGNED, "Curador reasignado a proyecto " + projectId + " -> usuario " + curatorId);
         return projectMapper.toDto(project);
     }
 
-    private void logAction(Long userId, String name, String description) {
+   
+    private void logAction(Long userId, ProjectActionType actionType, String description) {
         if (userId == null) return;
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return;
         Action action = Action.builder()
-            .name(name)
+            .name(actionType.name())
             .description(description)
             .user(user)
             .build();

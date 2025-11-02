@@ -34,7 +34,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 public class ProjectController {
     
     private final ProjectService projectService;
-    private final UserRepository userRepository;
+
 
     @PreAuthorize("hasAuthority('LIDER_COMUNITARIO')")
     @PostMapping
@@ -140,9 +140,8 @@ public class ProjectController {
     public ResponseEntity<ProjectDto> createProject(
             @Valid @RequestBody ProjectSaveDto projectSaveDto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User creator = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.saveProject(projectSaveDto, creator.getId()));
+        Long creatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.saveProject(projectSaveDto, creatorId));
     }
 
     @GetMapping("/{id}")
@@ -583,13 +582,9 @@ public ResponseEntity<List<ProjectDto>> getAllProjects() {
 public ResponseEntity<List<ProjectDto>> getMyProjects() {
    
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String email = auth.getName();
+    Long creatorId = (Long) auth.getDetails();
     
- 
-    User creator = userRepository.findByEmail(email);
-    
-    
-    return ResponseEntity.ok(projectService.findByCreatorId(creator.getId()));
+    return ResponseEntity.ok(projectService.findByCreatorId(creatorId));
 }
 
 @PreAuthorize("hasAuthority('ADMIN')")
@@ -829,9 +824,8 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
             @PathVariable Long id,
             @Valid @RequestBody ProjectSaveDto projectDto) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            String email = auth.getName();
-            User currentUser = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.updateProject(id, projectDto, currentUser.getId()));
+            Long creatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.updateProject(id, projectDto, creatorId));
     }
 
     @PreAuthorize("hasAuthority('ADMIN')")
@@ -895,9 +889,8 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
             )
             @RequestParam Long curatorId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User admin = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, admin.getId()));
+        Long adminId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, adminId));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
@@ -959,9 +952,8 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
             @PathVariable Long id,
             @Valid @RequestBody ReviewNotesDto body) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User curator = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.addObservations(id, curator.getId(), body.notes()));
+        Long curatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.addObservations(id, curatorId, body.notes()));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
@@ -1021,9 +1013,8 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
             )
             @PathVariable Long id) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User curator = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.approveProject(id, curator.getId()));
+        Long curatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.approveProject(id, curatorId));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
@@ -1083,9 +1074,8 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
             )
             @RequestParam(required = false) ProjectStatus status) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String email = auth.getName();
-        User curator = userRepository.findByEmail(email);
-        return ResponseEntity.ok(projectService.findByCurator(curator.getId(), status));
+        Long curatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(projectService.findByCurator(curatorId, status));
     }
 
     @DeleteMapping("/{id}")

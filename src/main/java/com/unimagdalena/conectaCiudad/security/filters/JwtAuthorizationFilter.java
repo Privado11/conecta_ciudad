@@ -50,6 +50,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
                     .getPayload();
 
             String username = claims.getSubject();
+            Long id = claims.get("id", Long.class);
 
             @SuppressWarnings("unchecked")
             List<String> roles = (List<String>) claims.get("roles");
@@ -61,6 +62,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
             if (username != null) {
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         username, null, authorities);
+                        auth.setDetails(id);
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
 

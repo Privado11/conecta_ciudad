@@ -62,14 +62,20 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
 
-       
+        User userEntity = userRepository.findByEmail(springUser.getUsername());
+
+        if (userEntity == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
+            return;
+        }
+
         List<String> roleNames = springUser.getAuthorities().stream()
             .map(a -> a.getAuthority())
             .toList();
 
         String token=Jwts.builder()
             .subject(springUser.getUsername())
-            .claims(Map.of("roles", roleNames))
+            .claims(Map.of("roles", roleNames, "id", userEntity.getId()))
             .signWith(SECRET_KEY)
             .expiration(new Date(System.currentTimeMillis() + 3600000))
             .issuedAt(new Date())
@@ -80,6 +86,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         Map<String, String> json=new HashMap<>();
         json.put("token", token);
+        json.put("id", userEntity.getId().toString());
         json.put("username", springUser.getUsername());
         json.put("message", "Bienvenido " + springUser.getUsername() + ", has iniciado sesión correctamente");
 
@@ -89,7 +96,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
        
         accessRepository.save(Access.builder()
-            .user(userRepository.findByEmail(springUser.getUsername()))
+            .user(userEntity)
             .build());
     }
 
