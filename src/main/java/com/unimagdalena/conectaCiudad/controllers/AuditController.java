@@ -53,6 +53,8 @@ public class AuditController {
             - No aplica ningún filtro por fecha, usuario o tipo de acción
             
             **Tipos de acciones registradas:**
+            
+            **Acciones de Proyecto:**
             - **PROJECT_CREATED**: Cuando un líder comunitario crea un nuevo proyecto
             - **PROJECT_UPDATED**: Cuando se actualiza la información de un proyecto
             - **PROJECT_DELETED**: Cuando se elimina un proyecto del sistema
@@ -60,7 +62,18 @@ public class AuditController {
             - **CURATOR_REASSIGNED**: Cuando se cambia el curador asignado a un proyecto
             - **PROJECT_OBSERVATIONS_ADDED**: Cuando un curador registra observaciones
             - **PROJECT_APPROVED**: Cuando un curador aprueba un proyecto
+            
+            **Acciones de Usuario:**
+            - **USER_CREATED**: Cuando se crea un nuevo usuario en el sistema
+            - **USER_UPDATED**: Cuando se actualiza la información de un usuario
+            - **USER_DELETED**: Cuando se elimina un usuario del sistema
+            - **USER_ROLE_ADDED**: Cuando se asigna un nuevo rol a un usuario
+            - **USER_ROLE_REMOVED**: Cuando se remueve un rol de un usuario
             - **USER_LOGIN**: Cuando un usuario inicia sesión
+            
+            **Acciones de Ciudadano:**
+            - **CITIZEN_VOTE**: Cuando un ciudadano vota por un proyecto
+            - **CITIZEN_COMMENT**: Cuando un ciudadano realiza un comentario en un proyecto
 
 
             **Información incluida en cada acción:**

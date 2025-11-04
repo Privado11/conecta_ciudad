@@ -52,11 +52,18 @@ public class ProjectController {
             **Flujo completo del proyecto:**
             1. Creación → PENDIENTE (Pendiente de revisión)
             2. Asignación de curador → EN_REVISION (En revisión)
+               - Si hay curadores disponibles, se asignará uno automáticamente
+               - Si no hay curadores disponibles, el proyecto permanecerá en estado PENDIENTE hasta que se asigne un curador manualmente
             3. Si requiere cambios → OBSERVACIONES (Devuelto con observaciones)
             4. Preparación → LISTO_PARA_PUBLICAR (Listo para publicar)
             5. Publicación → PUBLICADO (Publicado)
             
             También puede ser RECHAZADO en cualquier punto del proceso.
+            
+            **Nota importante sobre curadores:**
+            - Al crear un proyecto, el sistema intentará asignar automáticamente un curador disponible.
+            - La asignación automática se basa en la carga de trabajo actual de los curadores.
+            - Si no hay curadores disponibles, el administrador deberá asignar uno manualmente para que el proceso de revisión pueda continuar.
             """,
         requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "Datos del proyecto a crear. Todos los campos son requeridos.",
