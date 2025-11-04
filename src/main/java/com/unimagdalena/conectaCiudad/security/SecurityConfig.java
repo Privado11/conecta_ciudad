@@ -16,10 +16,10 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
-import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
+import com.unimagdalena.conectaCiudad.services.access.AccessService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -31,7 +31,7 @@ public class SecurityConfig {
     private final AuthenticationConfiguration authenticationConfiguration;
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final UserRepository userRepository;
-    private final AccessRepository accessRepository;
+    private final AccessService accessService;
 
     @Bean
     public AuthenticationManager authenticationManager() throws Exception {
@@ -47,7 +47,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         JwtAuthenticationFilter jwtAuthFilter = 
-            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessRepository);
+            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService);
         jwtAuthFilter.setFilterProcessesUrl("/auth/login"); 
 
         return http

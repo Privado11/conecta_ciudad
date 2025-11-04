@@ -43,6 +43,10 @@ public class Action {
     @ManyToOne
     @JoinColumn(name = "user_id")
     private User user;
+
+    @ManyToOne
+    @JoinColumn(name = "access_id")
+    private Access access;
 }
 
 

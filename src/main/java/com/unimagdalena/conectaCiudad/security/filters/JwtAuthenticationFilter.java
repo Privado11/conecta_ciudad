@@ -13,10 +13,11 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.unimagdalena.conectaCiudad.entities.Access;
+import com.unimagdalena.conectaCiudad.Dto.access.AccessDto;
+import com.unimagdalena.conectaCiudad.Dto.access.AccessSaveDto;
 import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
+import com.unimagdalena.conectaCiudad.services.access.AccessService;
 
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -32,7 +33,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
     private AuthenticationManager authenticationManager;
     private UserRepository userRepository;
-    private AccessRepository accessRepository;
+    private AccessService accessService;
     
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
@@ -64,10 +65,21 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         User userEntity = userRepository.findByEmail(springUser.getUsername());
 
+    
+
         if (userEntity == null) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
             return;
         }
+
+        String ipAddress = getIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        String location = request.getHeader("Location");
+        
+
+         AccessDto accessDto = accessService.save(
+            new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
+        );
 
         List<String> roleNames = springUser.getAuthorities().stream()
             .map(a -> a.getAuthority())
@@ -75,7 +87,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         String token=Jwts.builder()
             .subject(springUser.getUsername())
-            .claims(Map.of("roles", roleNames, "id", userEntity.getId()))
+            .claims(Map.of("roles", roleNames, "id", userEntity.getId(), "access_id", accessDto.id()))
             .signWith(SECRET_KEY)
             .expiration(new Date(System.currentTimeMillis() + 3600000))
             .issuedAt(new Date())
@@ -94,10 +106,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         response.setContentType(CONTENT_TYPE);
         response.setStatus(200);
 
-       
-        accessRepository.save(Access.builder()
-            .user(userEntity)
-            .build());
+
+
     }
 
 
@@ -111,6 +121,54 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         response.getWriter().write(new ObjectMapper().writeValueAsString(json));
         response.setContentType(CONTENT_TYPE);
         response.setStatus(401);
+
+        
+ 
+    try {
+        String ipAddress = getIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        
+     
+        String body = request.getReader().lines().reduce("", (accumulator, actual) -> accumulator + actual);
+        User user = new ObjectMapper().readValue(body, User.class);
+        User userEntity = userRepository.findByEmail(user.getEmail());
+        
+        if (userEntity != null) {
+            accessService.save(new AccessSaveDto(
+                userEntity, 
+                ipAddress, 
+                userAgent, 
+                null, 
+                false 
+            ));
+        }
+    } catch (Exception e) {
+        
+    }
+    }
+
+    private String getIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        
+       
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        
+        return ip;
     }
 
 }

@@ -51,6 +51,7 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
 
             String username = claims.getSubject();
             Long id = claims.get("id", Long.class);
+            Long accessId = claims.get("access_id", Long.class);
 
             @SuppressWarnings("unchecked")
             List<String> roles = (List<String>) claims.get("roles");
@@ -64,6 +65,10 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
                         username, null, authorities);
                         auth.setDetails(id);
                 SecurityContextHolder.getContext().setAuthentication(auth);
+            }
+
+            if (accessId != null) {
+                request.setAttribute("currentAccessId", accessId);
             }
 
         } catch (Exception e) {

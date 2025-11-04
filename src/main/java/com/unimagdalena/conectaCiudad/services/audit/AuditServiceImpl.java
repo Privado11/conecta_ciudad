@@ -16,9 +16,11 @@ import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.CitizenActionType;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
+import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
 import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,6 +32,8 @@ public class AuditServiceImpl implements AuditService {
     private final ActionRepository actionRepository;
     private final ActionMapper actionMapper;
     private final UserRepository userRepository;
+    private final AccessRepository accessRepository;  
+    private final HttpServletRequest request; 
 
     @Override
     public List<ActionDto> findAllActions() {
@@ -118,15 +122,25 @@ public class AuditServiceImpl implements AuditService {
         return actionDto;
     }
 
+    
+
      private ActionDto logAction(CitizenActionType actionType, String description, Long userId) {
         if (userId == null) return null;
         User user = userRepository.findById(userId).orElse(null);
         if (user == null) return null;
+
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+
         Action action = Action.builder()
             .name(actionType.name())
             .description(description)
             .user(user)
             .build();
+
+        if (accessId != null) {
+            action.setAccess(accessRepository.findById(accessId).orElse(null));
+        }
+
         actionRepository.save(action);
         return actionMapper.toDto(action);
     }

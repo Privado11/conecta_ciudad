@@ -60,9 +60,9 @@ public class AuditController {
             - **CURATOR_REASSIGNED**: Cuando se cambia el curador asignado a un proyecto
             - **PROJECT_OBSERVATIONS_ADDED**: Cuando un curador registra observaciones
             - **PROJECT_APPROVED**: Cuando un curador aprueba un proyecto
-            - **USER_LOGIN**: Cuando un usuario inicia sesión (si está implementado)
-            - **USER_LOGOUT**: Cuando un usuario cierra sesión (si está implementado)
-            
+            - **USER_LOGIN**: Cuando un usuario inicia sesión
+
+
             **Información incluida en cada acción:**
             - ID único de la acción
             - Nombre/tipo de la acción
@@ -101,11 +101,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 15 aprobado (listo para publicar)",
                             "actionAt": "2024-11-01T14:30:25",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 145,
+                                "accessAt": "2024-11-01T14:25:00",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -113,11 +121,19 @@ public class AuditController {
                             "name": "PROJECT_OBSERVATIONS_ADDED",
                             "description": "Observaciones registradas para proyecto 12",
                             "actionAt": "2024-11-01T11:15:40",
-                            "user": {
-                                "id": 3,
-                                "name": "Carlos Rodríguez",
-                                "email": "carlos.rodriguez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 144,
+                                "accessAt": "2024-11-01T11:10:30",
+                                "user": {
+                                    "id": 3,
+                                    "name": "Carlos Rodríguez",
+                                    "email": "carlos.rodriguez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.105",
+                                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+                                "location": "Barranquilla, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -125,47 +141,19 @@ public class AuditController {
                             "name": "CURATOR_REASSIGNED",
                             "description": "Curador reasignado a proyecto 8 -> usuario 2",
                             "actionAt": "2024-11-01T09:45:12",
-                            "user": {
-                                "id": 1,
-                                "name": "Admin Principal",
-                                "email": "admin@conectaciudad.com",
-                                "roles": ["ADMIN"]
-                            }
-                        },
-                        {
-                            "id": 242,
-                            "name": "PROJECT_UPDATED",
-                            "description": "Proyecto actualizado con id 7",
-                            "actionAt": "2024-10-31T16:20:33",
-                            "user": {
-                                "id": 5,
-                                "name": "Walter Jiménez",
-                                "email": "walter.jimenez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
-                            }
-                        },
-                        {
-                            "id": 241,
-                            "name": "PROJECT_CREATED",
-                            "description": "Proyecto creado con id 20",
-                            "actionAt": "2024-10-31T10:05:18",
-                            "user": {
-                                "id": 8,
-                                "name": "Ana Martínez",
-                                "email": "ana.martinez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
-                            }
-                        },
-                        {
-                            "id": 240,
-                            "name": "CURATOR_ASSIGNED",
-                            "description": "Curator asignado al proyecto 20",
-                            "actionAt": "2024-10-31T10:05:19",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 143,
+                                "accessAt": "2024-11-01T09:40:00",
+                                "user": {
+                                    "id": 1,
+                                    "name": "Admin Principal",
+                                    "email": "admin@conectaciudad.com",
+                                    "roles": ["ADMIN"]
+                                },
+                                "ipAddress": "192.168.1.50",
+                                "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+                                "location": "Cartagena, Colombia",
+                                "success": true
                             }
                         }
                     ]
@@ -257,11 +245,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 15 aprobado (listo para publicar)",
                             "actionAt": "2024-11-01T14:30:25",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 145,
+                                "accessAt": "2024-11-01T14:25:00",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -269,11 +265,19 @@ public class AuditController {
                             "name": "PROJECT_OBSERVATIONS_ADDED",
                             "description": "Observaciones registradas para proyecto 18",
                             "actionAt": "2024-10-30T16:45:10",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 138,
+                                "accessAt": "2024-10-30T16:40:00",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -281,11 +285,19 @@ public class AuditController {
                             "name": "CURATOR_ASSIGNED",
                             "description": "Curator asignado al proyecto 18",
                             "actionAt": "2024-10-29T09:20:33",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 135,
+                                "accessAt": "2024-10-29T09:15:20",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -293,11 +305,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 12 aprobado (listo para publicar)",
                             "actionAt": "2024-10-28T11:15:00",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 130,
+                                "accessAt": "2024-10-28T11:10:45",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         }
                     ]
@@ -389,16 +409,24 @@ public class AuditController {
                     name = "searchActionsResponse",
                     value = """
                     [
-                        {
+                         {
                             "id": 245,
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 15 aprobado (listo para publicar)",
                             "actionAt": "2024-11-01T14:30:25",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 145,
+                                "accessAt": "2024-11-01T14:25:00",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -406,11 +434,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 12 aprobado (listo para publicar)",
                             "actionAt": "2024-10-28T11:15:00",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 130,
+                                "accessAt": "2024-10-28T11:10:45",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -418,11 +454,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 8 aprobado (listo para publicar)",
                             "actionAt": "2024-10-25T09:40:15",
-                            "user": {
-                                "id": 3,
-                                "name": "Carlos Rodríguez",
-                                "email": "carlos.rodriguez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 118,
+                                "accessAt": "2024-10-25T09:35:00",
+                                "user": {
+                                    "id": 3,
+                                    "name": "Carlos Rodríguez",
+                                    "email": "carlos.rodriguez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.105",
+                                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+                                "location": "Barranquilla, Colombia",
+                                "success": true
                             }
                         }
                     ]
@@ -542,11 +586,19 @@ public class AuditController {
                             "name": "PROJECT_CREATED",
                             "description": "Proyecto creado con id 22",
                             "actionAt": "2024-11-01T16:45:30",
-                            "user": {
-                                "id": 8,
-                                "name": "Ana Martínez",
-                                "email": "ana.martinez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
+                            "access": {
+                                "id": 148,
+                                "accessAt": "2024-11-01T16:40:15",
+                                "user": {
+                                    "id": 8,
+                                    "name": "Ana Martínez",
+                                    "email": "ana.martinez@example.com",
+                                    "roles": ["LIDER_COMUNITARIO"]
+                                },
+                                "ipAddress": "192.168.1.120",
+                                "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0)",
+                                "location": "Bogotá, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -554,11 +606,19 @@ public class AuditController {
                             "name": "CURATOR_ASSIGNED",
                             "description": "Curator asignado al proyecto 22",
                             "actionAt": "2024-11-01T16:45:31",
-                            "user": {
-                                "id": 3,
-                                "name": "Carlos Rodríguez",
-                                "email": "carlos.rodriguez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 147,
+                                "accessAt": "2024-11-01T16:40:20",
+                                "user": {
+                                    "id": 3,
+                                    "name": "Carlos Rodríguez",
+                                    "email": "carlos.rodriguez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.105",
+                                "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+                                "location": "Barranquilla, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -566,11 +626,19 @@ public class AuditController {
                             "name": "PROJECT_UPDATED",
                             "description": "Proyecto actualizado con id 15",
                             "actionAt": "2024-11-01T15:20:18",
-                            "user": {
-                                "id": 5,
-                                "name": "Walter Jiménez",
-                                "email": "walter.jimenez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
+                            "access": {
+                                "id": 146,
+                                "accessAt": "2024-11-01T15:15:00",
+                                "user": {
+                                    "id": 5,
+                                    "name": "Walter Jiménez",
+                                    "email": "walter.jimenez@example.com",
+                                    "roles": ["LIDER_COMUNITARIO"]
+                                },
+                                "ipAddress": "192.168.1.110",
+                                "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64)",
+                                "location": "Medellín, Colombia",
+                                "success": true
                             }
                         },
                         {
@@ -578,83 +646,19 @@ public class AuditController {
                             "name": "PROJECT_APPROVED",
                             "description": "Proyecto 15 aprobado (listo para publicar)",
                             "actionAt": "2024-11-01T14:30:25",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
-                            }
-                        },
-                        {
-                            "id": 244,
-                            "name": "PROJECT_OBSERVATIONS_ADDED",
-                            "description": "Observaciones registradas para proyecto 12",
-                            "actionAt": "2024-11-01T11:15:40",
-                            "user": {
-                                "id": 3,
-                                "name": "Carlos Rodríguez",
-                                "email": "carlos.rodriguez@example.com",
-                                "roles": ["CURATOR"]
-                            }
-                        },
-                        {
-                            "id": 243,
-                            "name": "CURATOR_REASSIGNED",
-                            "description": "Curador reasignado a proyecto 8 -> usuario 2",
-                            "actionAt": "2024-11-01T09:45:12",
-                            "user": {
-                                "id": 1,
-                                "name": "Admin Principal",
-                                "email": "admin@conectaciudad.com",
-                                "roles": ["ADMIN"]
-                            }
-                        },
-                        {
-                            "id": 242,
-                            "name": "PROJECT_UPDATED",
-                            "description": "Proyecto actualizado con id 7",
-                            "actionAt": "2024-10-31T16:20:33",
-                            "user": {
-                                "id": 5,
-                                "name": "Walter Jiménez",
-                                "email": "walter.jimenez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
-                            }
-                        },
-                        {
-                            "id": 241,
-                            "name": "PROJECT_CREATED",
-                            "description": "Proyecto creado con id 20",
-                            "actionAt": "2024-10-31T10:05:18",
-                            "user": {
-                                "id": 8,
-                                "name": "Ana Martínez",
-                                "email": "ana.martinez@example.com",
-                                "roles": ["LIDER_COMUNITARIO"]
-                            }
-                        },
-                        {
-                            "id": 240,
-                            "name": "CURATOR_ASSIGNED",
-                            "description": "Curator asignado al proyecto 20",
-                            "actionAt": "2024-10-31T10:05:19",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
-                            }
-                        },
-                        {
-                            "id": 239,
-                            "name": "PROJECT_APPROVED",
-                            "description": "Proyecto 18 aprobado (listo para publicar)",
-                            "actionAt": "2024-10-30T17:30:55",
-                            "user": {
-                                "id": 2,
-                                "name": "Nicole Hernández",
-                                "email": "nicole.hernandez@example.com",
-                                "roles": ["CURATOR"]
+                            "access": {
+                                "id": 145,
+                                "accessAt": "2024-11-01T14:25:00",
+                                "user": {
+                                    "id": 2,
+                                    "name": "Nicole Hernández",
+                                    "email": "nicole.hernandez@example.com",
+                                    "roles": ["CURATOR"]
+                                },
+                                "ipAddress": "192.168.1.100",
+                                "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                                "location": "Santa Marta, Colombia",
+                                "success": true
                             }
                         }
                     ]

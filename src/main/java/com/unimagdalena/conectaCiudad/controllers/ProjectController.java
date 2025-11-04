@@ -10,8 +10,7 @@ import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ReviewNotesDto;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.services.project.ProjectService;
-import com.unimagdalena.conectaCiudad.repositories.UserRepository;
-import com.unimagdalena.conectaCiudad.entities.User;
+
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,6 +22,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
+
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -138,10 +139,12 @@ public class ProjectController {
         )
     })
     public ResponseEntity<ProjectDto> createProject(
-            @Valid @RequestBody ProjectSaveDto projectSaveDto) {
+            @Valid @RequestBody ProjectSaveDto projectSaveDto, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Long creatorId = (Long) auth.getDetails();
-        return ResponseEntity.ok(projectService.saveProject(projectSaveDto, creatorId));
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+
+        return ResponseEntity.ok(projectService.saveProject(projectSaveDto, creatorId, accessId));
     }
 
     @GetMapping("/{id}")
@@ -822,10 +825,11 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
                 required = true
             )
             @PathVariable Long id,
-            @Valid @RequestBody ProjectSaveDto projectDto) {
+            @Valid @RequestBody ProjectSaveDto projectDto, HttpServletRequest request) {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             Long creatorId = (Long) auth.getDetails();
-        return ResponseEntity.ok(projectService.updateProject(id, projectDto, creatorId));
+            Long accessId = (Long) request.getAttribute("currentAccessId");
+        return ResponseEntity.ok(projectService.updateProject(id, projectDto, creatorId, accessId));
     }
 
     @PreAuthorize("hasAuthority('ADMIN')")
@@ -887,10 +891,11 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
                 example = "2",
                 required = true
             )
-            @RequestParam Long curatorId) {
+            @RequestParam Long curatorId, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Long adminId = (Long) auth.getDetails();
-        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, adminId));
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+        return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, adminId, accessId));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
@@ -950,10 +955,11 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
                 required = true
             )
             @PathVariable Long id,
-            @Valid @RequestBody ReviewNotesDto body) {
+            @Valid @RequestBody ReviewNotesDto body, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Long curatorId = (Long) auth.getDetails();
-        return ResponseEntity.ok(projectService.addObservations(id, curatorId, body.notes()));
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+        return ResponseEntity.ok(projectService.addObservations(id, curatorId, body.notes(), accessId));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")
@@ -1011,10 +1017,11 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
                 example = "1",
                 required = true
             )
-            @PathVariable Long id) {
+            @PathVariable Long id, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Long curatorId = (Long) auth.getDetails();
-        return ResponseEntity.ok(projectService.approveProject(id, curatorId));
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+        return ResponseEntity.ok(projectService.approveProject(id, curatorId, accessId));
     }
 
     @PreAuthorize("hasAuthority('CURATOR')")

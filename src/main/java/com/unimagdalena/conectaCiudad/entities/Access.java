@@ -34,9 +34,19 @@ public class Access {
     @CreationTimestamp
     private LocalDateTime accessAt;
 
+    @Column(name = "ip_address", nullable = false)
+    private String ipAddress;
+
+    @Column(name = "user_agent", length = 500) 
+    private String userAgent;
+
+    @Column(name = "location", length = 100) 
+    private String location;
+
+    @Column(name = "success", nullable = false) 
+    private Boolean success;
+
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 }
-
-
