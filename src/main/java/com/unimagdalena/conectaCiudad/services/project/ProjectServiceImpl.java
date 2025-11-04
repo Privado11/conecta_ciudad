@@ -28,14 +28,13 @@ import com.unimagdalena.conectaCiudad.services.access.AccessService;
 
 import lombok.RequiredArgsConstructor;
 
-import com.unimagdalena.conectaCiudad.repositories.AccessRepository;
 import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 
 @Service
 @RequiredArgsConstructor
 public class ProjectServiceImpl implements ProjectService {
     
-     private final ProjectRepository projectRepository;
+    private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
     private final ActionRepository actionRepository; 
@@ -313,6 +312,7 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
             if (user == null) return;
             if (accessId == null) return;
             Access access = accessService.findById(accessId);
+            if (access == null) return;
         
 
             Action action = Action.builder()

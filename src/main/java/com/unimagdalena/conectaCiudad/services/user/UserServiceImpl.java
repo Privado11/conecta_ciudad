@@ -5,26 +5,37 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ArrayList;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.unimagdalena.conectaCiudad.Dto.action.ActionDto;
+import com.unimagdalena.conectaCiudad.Dto.action.ActionSaveDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.enums.UserActionType;
+import com.unimagdalena.conectaCiudad.entities.Access;
 import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
+import com.unimagdalena.conectaCiudad.services.access.AccessService;
+import com.unimagdalena.conectaCiudad.services.action.ActionService;
+
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.AllArgsConstructor;
+
 import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 
 
 
 @Service
+@AllArgsConstructor
 public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
@@ -32,15 +43,10 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final ProjectRepository projectRepository;
     private static final Set<String> ALLOWED_ROLE_NAMES = Set.of("ADMIN", "CIUDADANO", "CURATOR", "LIDER_COMUNITARIO");
+    private final AccessService accessService; 
+    private final ActionService actionService;
+    private final HttpServletRequest request; 
 
-    @Autowired
-    public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder, RoleRepository roleRepository, ProjectRepository projectRepository) {
-        this.userRepository = userRepository;
-        this.userMapper = userMapper;
-        this.passwordEncoder = passwordEncoder;
-        this.roleRepository = roleRepository;
-        this.projectRepository = projectRepository;
-    }
 
     @Override
     public UserDto findByEmail(String email) {
@@ -68,31 +74,6 @@ public class UserServiceImpl implements UserService {
             .toList();
     }
 
-    @Override
-    public UserDto saveUser(UserSaveDto user) {    
-
-        Optional<User> existingUser = userRepository.findByEmailOrNationalId(user.email(), user.nationalId());
-        existingUser.ifPresent(u -> {
-            if (u.getEmail().equals(user.email())) {
-                throw new DuplicateResourceException("User", "email", user.email());
-            }
-            if (u.getNationalId().equals(user.nationalId())) {
-                throw new DuplicateResourceException("User", "nationalId", user.nationalId());
-            }
-        });
-
-        User userToSave = userMapper.toUserSaveDtoToEntity(user);
-        userToSave.setPassword(passwordEncoder.encode(userToSave.getPassword()));
-        
-        Role defaultRole = roleRepository.findByNameContainingIgnoreCase("CIUDADANO");
-        if (defaultRole == null) {
-            throw new BadRequestException("Default role CIUDADANO not found");
-        }
-        List<Role> roles = new ArrayList<>();
-        roles.add(defaultRole);
-        userToSave.setRoles(roles);
-        return userMapper.toDto(userRepository.save(userToSave));
-    }
 
     @Override
 public UserDto findById(Long id) {
@@ -119,7 +100,7 @@ public UserDto findById(Long id) {
 
     @Override
     public UserDto updateUser(Long id, UserSaveDto user) {
-        return userRepository.findById(id).map(existingUser -> {
+        UserDto userDto = userRepository.findById(id).map(existingUser -> {
             existingUser.setName(user.name());
             existingUser.setEmail(user.email());
             existingUser.setNationalId(user.nationalId());
@@ -127,6 +108,8 @@ public UserDto findById(Long id) {
             return userRepository.save(existingUser);
         }).map(userMapper::toDto)
         .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        logAction(UserActionType.USER_UPDATED, "Usuario actualizado " + userDto.id(), userDto.id());
+        return userDto;
     }
 
     @Override
@@ -137,7 +120,10 @@ public UserDto findById(Long id) {
         if (projects > 0) {
             throw new BadRequestException("No se puede eliminar el usuario: tiene " + projects + " proyecto(s) asociados");
         }
+        UserDto userDto = userMapper.toDto(user);
+        logAction(UserActionType.USER_DELETED, "Usuario eliminado " + userDto.id(), id);
         userRepository.delete(user);
+        
     }
 
     @Override
@@ -159,7 +145,9 @@ public UserDto findById(Long id) {
             user.setRoles(roles);
             user = userRepository.save(user);
         }
-        return userMapper.toDto(user);
+        UserDto userDto = userMapper.toDto(user);
+        logAction(UserActionType.USER_ROLE_ADDED, "Rol " + role.getName() + " agregado al usuario " + userDto.id(), userId);
+        return userDto;
     }
 
     @Override
@@ -180,12 +168,18 @@ public UserDto findById(Long id) {
             roles.add(defaultRole);
         }
         user.setRoles(roles);
-        user = userRepository.save(user);
-        return userMapper.toDto(user);
+        UserDto userDto = userMapper.toDto(userRepository.save(user));
+        logAction(UserActionType.USER_ROLE_REMOVED, "Rol " + roleName + " removido del usuario " + userDto.id(), userId);
+        return userDto;
     }
 
     @Override
-    public UserDto createUserWithRoles(UserSaveDto user, List<String> roleNames) {
+    public UserDto saveUser(UserSaveDto user) {    
+
+        if (user.roles() == null || user.roles().isEmpty()) {
+            throw new BadRequestException("Se debe proporcionar al menos un rol para el usuario");
+        }
+
         Optional<User> existingUser = userRepository.findByEmailOrNationalId(user.email(), user.nationalId());
         existingUser.ifPresent(u -> {
             if (u.getEmail().equals(user.email())) {
@@ -198,33 +192,35 @@ public UserDto findById(Long id) {
 
         User userToSave = userMapper.toUserSaveDtoToEntity(user);
         userToSave.setPassword(passwordEncoder.encode(userToSave.getPassword()));
+        
+        
+        List<Role> roles = user.roles().stream()
+        .map(roleName -> roleRepository.findByNameContainingIgnoreCase(roleName))
+        .filter(Objects::nonNull)
+        .toList();
 
-        List<Role> rolesToAssign = new ArrayList<>();
-        if (roleNames == null || roleNames.isEmpty()) {
-            Role defaultRole = roleRepository.findByNameContainingIgnoreCase("CIUDADANO");
-            if (defaultRole == null) {
-                throw new BadRequestException("Default role CIUDADANO not found");
-            }
-            rolesToAssign.add(defaultRole);
-        } else {
-            for (String roleName : roleNames) {
-                String normalized = roleName == null ? "" : roleName.trim().toUpperCase();
-                if (!ALLOWED_ROLE_NAMES.contains(normalized)) {
-                    throw new BadRequestException("Role not allowed: " + roleName);
-                }
-                Role role = roleRepository.findByNameContainingIgnoreCase(normalized);
-                if (role == null) {
-                    throw new ResourceNotFoundException("Role", "name", roleName);
-                }
-                boolean exists = rolesToAssign.stream().anyMatch(r -> r.getName().equalsIgnoreCase(role.getName()));
-                if (!exists) {
-                    rolesToAssign.add(role);
-                }
-            }
+        if (roles.isEmpty()) {
+            throw new BadRequestException("Los roles proporcionados no existen en la base de datos");
         }
+       
+        userToSave.setRoles(roles);
+        UserDto userDto = userMapper.toDto(userRepository.save(userToSave));
+       
+        logAction(UserActionType.USER_CREATED, "Usuario " + userDto.id() + " creado con rol: " + roles.stream().map(Role::getName).collect(Collectors.joining(", ")), userDto.id());
+        return userDto;
+    }
 
-        userToSave.setRoles(rolesToAssign);
-        return userMapper.toDto(userRepository.save(userToSave));
+
+    private ActionDto logAction(UserActionType actionType, String description, Long userId) {
+        if (userId == null) return null;
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return null;
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+        if (accessId == null) return null;
+        Access access = accessService.findById(accessId);
+        if (access == null) return null;
+
+        return actionService.save(new ActionSaveDto(actionType.name(), description, userId, access));
     }
 }
 

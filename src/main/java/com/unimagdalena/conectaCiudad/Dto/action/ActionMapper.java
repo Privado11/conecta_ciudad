@@ -12,5 +12,6 @@ public interface ActionMapper {
     ActionMapper INSTANCE = Mappers.getMapper(ActionMapper.class);
 
     ActionDto toDto(Action action);
+    Action toEntity(ActionSaveDto actionDto);
  
 }

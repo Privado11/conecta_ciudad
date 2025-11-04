@@ -1,0 +1,24 @@
+package com.unimagdalena.conectaCiudad.enums;
+
+public enum UserActionType {
+    USER_CREATED("Creación de usuario"),
+    USER_UPDATED("Actualización de usuario"),
+    USER_DELETED("Eliminación de usuario"),
+    USER_ROLE_ADDED("Adición de rol al usuario"),
+    USER_ROLE_REMOVED("Remoción de rol del usuario");
+
+    private final String description;
+
+    UserActionType(String description) {
+        this.description = description;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    @Override
+    public String toString() {
+        return this.name();
+    }
+}

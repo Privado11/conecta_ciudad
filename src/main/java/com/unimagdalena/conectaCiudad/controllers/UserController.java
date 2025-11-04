@@ -355,6 +355,7 @@ public class UserController {
                 required = true
             )
             @PathVariable Long id) {
+        
         userService.deleteUser(id);
         return ResponseEntity.ok("User deleted successfully");
     }
@@ -660,6 +661,6 @@ public class UserController {
     })
     public ResponseEntity<UserDto> createUserAdmin(
             @Valid @RequestBody UserSaveDto userDto) {
-        return ResponseEntity.ok(userService.createUserWithRoles(userDto, userDto.roles()));
+        return ResponseEntity.ok(userService.saveUser(userDto));
     }
 }
