@@ -11,7 +11,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.client.RestTemplate;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessDto;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessSaveDto;
@@ -74,7 +76,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
         String ipAddress = getIp(request);
         String userAgent = request.getHeader("User-Agent");
-        String location = request.getHeader("Location");
+        String location = getLocationFromIp(ipAddress);
         
 
          AccessDto accessDto = accessService.save(
@@ -170,5 +172,36 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         
         return ip;
     }
+
+    private String getLocationFromIp(String ipAddress) {
+        
+        if (ipAddress == null || ipAddress.equals("127.0.0.1") || 
+            ipAddress.equals("::1") || ipAddress.equals("0:0:0:0:0:0:0:1") ||
+            ipAddress.startsWith("192.168.") || ipAddress.startsWith("10.") ||
+            ipAddress.startsWith("172.")) {
+            return "Local";
+        }
+        
+        try {
+            String apiUrl = "http://ip-api.com/json/" + ipAddress;
+            RestTemplate restTemplate = new RestTemplate();
+            String response = restTemplate.getForObject(apiUrl, String.class);
+    
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(response);
+    
+            if ("success".equals(json.get("status").asText())) {
+                String city = json.get("city").asText();
+                String country = json.get("country").asText();
+                return city + ", " + country;
+            }
+        } catch (Exception e) {
+            
+            return null;
+        }
+    
+        return null;
+    }
+    
 
 }
