@@ -151,7 +151,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
 
     private String getIp(HttpServletRequest request) {
         String ip = request.getHeader("X-Forwarded-For");
-        
+    
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getHeader("X-Real-IP");
         }
@@ -164,14 +164,23 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
         }
-        
+    
        
         if (ip != null && ip.contains(",")) {
             ip = ip.split(",")[0].trim();
         }
-        
+    
+       
+        if (ip != null && ip.contains(":") && ip.split(":").length == 2) {
+            String[] parts = ip.split(":");
+            if (parts[0].matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) { 
+                ip = parts[0];
+            }
+        }
+    
         return ip;
     }
+    
 
     private String getLocationFromIp(String ipAddress) {
         
