@@ -13,5 +13,6 @@ public interface AccessMapper {
 
     Access toEntity(AccessSaveDto accessSaveDto);
     AccessDto toDto(Access access);
+    Access toEntity(AccessDto accessDto);
  
 }

@@ -16,10 +16,14 @@ import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessDto;
+import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessSaveDto;
+import com.unimagdalena.conectaCiudad.entities.Access;
 import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
+import com.unimagdalena.conectaCiudad.services.action.ActionService;
 
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -36,6 +40,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     private AuthenticationManager authenticationManager;
     private UserRepository userRepository;
     private AccessService accessService;
+    private AccessMapper accessMapper;
+    private ActionService actionService;
     
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
@@ -82,6 +88,9 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
          AccessDto accessDto = accessService.save(
             new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
         );
+
+        Access access = accessMapper.toEntity(accessDto);
+        actionService.logAction(UserActionType.USER_LOGIN.name(), "Inicio de sesión exitoso", userEntity, access);
 
         List<String> roleNames = springUser.getAuthorities().stream()
             .map(a -> a.getAuthority())
@@ -144,7 +153,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 false 
             ));
         }
-    } catch (Exception e) {
+    } catch (Exception e) { 
         
     }
     }

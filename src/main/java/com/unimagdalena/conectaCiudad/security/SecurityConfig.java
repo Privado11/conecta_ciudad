@@ -20,6 +20,8 @@ import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
+import com.unimagdalena.conectaCiudad.services.action.ActionService;
+import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 
 import lombok.RequiredArgsConstructor;
 
@@ -32,6 +34,8 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final UserRepository userRepository;
     private final AccessService accessService;
+    private final AccessMapper accessMapper;
+    private final ActionService actionService;
 
     @Bean
     public AuthenticationManager authenticationManager() throws Exception {
@@ -47,7 +51,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         JwtAuthenticationFilter jwtAuthFilter = 
-            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService);
+            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService, accessMapper, actionService);
         jwtAuthFilter.setFilterProcessesUrl("/auth/login"); 
 
         return http

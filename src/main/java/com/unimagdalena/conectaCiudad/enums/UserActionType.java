@@ -5,7 +5,8 @@ public enum UserActionType {
     USER_UPDATED("Actualización de usuario"),
     USER_DELETED("Eliminación de usuario"),
     USER_ROLE_ADDED("Adición de rol al usuario"),
-    USER_ROLE_REMOVED("Remoción de rol del usuario");
+    USER_ROLE_REMOVED("Remoción de rol del usuario"),
+    USER_LOGIN("Inicio de sesión");
 
     private final String description;
 

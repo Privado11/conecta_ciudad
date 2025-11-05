@@ -220,7 +220,7 @@ public UserDto findById(Long id) {
         Access access = accessService.findById(accessId);
         if (access == null) return null;
 
-        return actionService.save(new ActionSaveDto(actionType.name(), description, userId, access));
+        return actionService.save(new ActionSaveDto(actionType.name(), description, user, access));
     }
 }
 
