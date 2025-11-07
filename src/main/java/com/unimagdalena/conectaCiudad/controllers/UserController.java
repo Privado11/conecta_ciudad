@@ -96,112 +96,137 @@ public class UserController {
 
     @GetMapping
     @Operation(
-        summary = "Buscar y listar usuarios con filtros opcionales",
+        summary = "Buscar y listar usuarios con filtros opcionales y paginación",
         description = """
-            Permite buscar usuarios aplicando diferentes criterios de filtrado.
-            Si no se especifica ningún filtro, retorna todos los usuarios del sistema.
-            
-            **Criterios de búsqueda disponibles:**
-            - **Por email:** Búsqueda exacta del correo electrónico (case-sensitive para email)
-            - **Por nombre:** Búsqueda parcial case-insensitive (ej: "walter" encuentra "Walter Jiménez")
-            - **Por cédula/ID nacional:** Búsqueda exacta del número de identificación
-            - **Sin filtros:** Retorna el listado completo de usuarios registrados
-            
-            **Prioridad de filtros:** Si se envían múltiples parámetros, se prioriza en este orden:
-            1. email (más específico)
-            2. name (búsqueda parcial)
-            3. nationalId (búsqueda exacta)
-            
-            **Acceso:** Endpoint público (cualquier usuario autenticado puede consultar)
-            
-            **Casos de uso:**
-            - Buscar usuario por correo para verificar si existe: `?email=usuario@example.com`
-            - Buscar líderes comunitarios por nombre: `?name=walter`
-            - Verificar usuario por cédula: `?nationalId=1234567890`
-            - Listar todos los usuarios: sin parámetros
-            """
+        Permite buscar usuarios aplicando diferentes criterios de filtrado con soporte de paginación.
+        
+        **Criterios de búsqueda disponibles:**
+        - **Por nombre:** Búsqueda parcial case-insensitive (ej: "walter" encuentra "Walter Jiménez")
+        - **Por email:** Búsqueda exacta del correo electrónico
+        - **Por cédula/ID nacional:** Búsqueda exacta del número de identificación
+        - **Sin filtros:** Retorna el listado completo de usuarios registrados (paginado)
+        
+        **IMPORTANTE:** Cuando se usa el filtro 'name', la búsqueda se aplica sobre TODA la base de datos
+        y los resultados se paginan. Esto permite buscar entre miles de usuarios eficientemente.
+        
+        **Parámetros de paginación:**
+        - **page:** Número de página (comienza en 0, por defecto: 0)
+        - **size:** Elementos por página (por defecto: 10, máximo: 100)
+        - **sortBy:** Campo para ordenar (por defecto: "name")
+        - **sortDirection:** Dirección del ordenamiento "asc" o "desc" (por defecto: "asc")
+        
+        **Campos disponibles para ordenar:**
+        - name, email, nationalId, createdAt, phone, active
+        
+        **Comportamiento:**
+        - **Con filtro 'name':** Busca en toda la BD y pagina los resultados
+        - **Con filtros 'email' o 'nationalId':** Retorna objeto único sin paginación (búsqueda exacta)
+        - **Sin filtros:** Retorna página de todos los usuarios
+        """
     )
     @ApiResponses({
         @ApiResponse(
             responseCode = "200",
-            description = "Lista de usuarios que coinciden con los criterios de búsqueda (puede ser vacía o un objeto único si se busca por email)",
+            description = "Lista de usuarios que coinciden con los criterios (puede ser UserDto único, lista, o Page<UserDto>)",
             content = @Content(
                 mediaType = "application/json",
-                schema = @Schema(implementation = UserDto[].class),
-                examples = @ExampleObject(
-                    name = "usersList",
-                    value = """
-                    [
+                examples = {
+                    @ExampleObject(
+                        name = "paginatedUsers",
+                        description = "Respuesta paginada cuando no se especifican filtros",
+                        value = """
                         {
-                            "id": 1,
-                            "name": "Walter Jiménez",
-                            "email": "walter@example.com",
-                            "nationalId": "1234567890",
-                            "phone": "+573001234567",
-                            "roles": ["LIDER_COMUNITARIO"]
-                        },
-                        {
-                            "id": 2,
-                            "name": "Nicole Hernández",
-                            "email": "nicole@example.com",
-                            "nationalId": "0987654321",
-                            "phone": "+573009876543",
-                            "roles": ["CURATOR"]
-                        },
-                        {
-                            "id": 3,
-                            "name": "Carlos Rodríguez",
-                            "email": "carlos@example.com",
-                            "nationalId": "5555666777",
-                            "phone": "+573005556667",
-                            "roles": ["ADMIN", "CURATOR"]
+                            "content": [
+                                {
+                                    "id": 1,
+                                    "name": "Walter Jiménez",
+                                    "email": "walter@example.com",
+                                    "nationalId": "1234567890",
+                                    "phone": "+573001234567",
+                                    "roles": ["LIDER_COMUNITARIO"],
+                                    "active": true,
+                                    "createdAt": "2024-01-15T10:30:00",
+                                    "lastAction": "2024-11-07T14:20:00"
+                                }
+                            ],
+                            "pageable": {
+                                "pageNumber": 0,
+                                "pageSize": 10,
+                                "sort": {
+                                    "sorted": true,
+                                    "unsorted": false,
+                                    "empty": false
+                                }
+                            },
+                            "totalPages": 5,
+                            "totalElements": 47,
+                            "last": false,
+                            "first": true,
+                            "size": 10,
+                            "number": 0,
+                            "numberOfElements": 10,
+                            "empty": false
                         }
-                    ]
-                    """
-                )
+                        """
+                    ),
+                    @ExampleObject(
+                        name = "filteredUsers",
+                        description = "Respuesta cuando se busca por nombre (sin paginación)",
+                        value = """
+                        [
+                            {
+                                "id": 1,
+                                "name": "Walter Jiménez",
+                                "email": "walter@example.com",
+                                "nationalId": "1234567890",
+                                "phone": "+573001234567",
+                                "roles": ["LIDER_COMUNITARIO"]
+                            }
+                        ]
+                        """
+                    )
+                }
             )
         )
     })
     public ResponseEntity<?> searchUsers(
-            @Parameter(
-                description = """
-                    Filtrar por nombre del usuario (búsqueda parcial, case-insensitive).
-                    Ejemplo: 'walter' encontrará 'Walter Jiménez', 'Walter Smith', etc.
-                    """,
-                example = "Walter"
-            )
-            @RequestParam(required = false) String name,
+        @Parameter(description = "Filtrar por nombre (búsqueda parcial en toda la BD, con paginación)")
+        @RequestParam(required = false) String name,
+        
+        @Parameter(description = "Filtrar por correo electrónico (búsqueda exacta, sin paginación)")
+        @RequestParam(required = false) String email,
+        
+        @Parameter(description = "Filtrar por cédula (búsqueda exacta, sin paginación)")
+        @RequestParam(required = false) String nationalId,
+        
+        @Parameter(description = "Número de página (comienza en 0)")
+        @RequestParam(defaultValue = "0") int page,
+        
+        @Parameter(description = "Cantidad de elementos por página (máximo 100)")
+        @RequestParam(defaultValue = "10") int size,
+        
+        @Parameter(description = "Campo por el cual ordenar")
+        @RequestParam(defaultValue = "name") String sortBy,
+        
+        @Parameter(description = "Dirección del ordenamiento: 'asc' o 'desc'")
+        @RequestParam(defaultValue = "asc") String sortDirection) {
             
-            @Parameter(
-                description = """
-                    Filtrar por correo electrónico (búsqueda exacta).
-                    Debe coincidir exactamente con el email registrado en la base de datos.
-                    Útil para verificar si un email ya está en uso antes de registrar un nuevo usuario.
-                    """,
-                example = "walter@example.com"
-            )
-            @RequestParam(required = false) String email,
-            
-            @Parameter(
-                description = """
-                    Filtrar por número de identificación nacional/cédula (búsqueda exacta).
-                    Debe coincidir exactamente con el documento registrado.
-                    Útil para búsquedas de identidad y verificación de usuarios.
-                    """,
-                example = "1234567890"
-            )
-            @RequestParam(required = false) String nationalId) {
-               Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-                Long CurrentUserId = (Long) auth.getDetails();
-
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long currentUserId = (Long) auth.getDetails();
+    
+       
         if (email != null) {
             return ResponseEntity.ok(userService.findByEmail(email));
-        } else if (name != null) {
-            return ResponseEntity.ok(userService.findByNameContainingIgnoreCase(name));
         } else if (nationalId != null) {
             return ResponseEntity.ok(userService.findByNationalId(nationalId));
+        } else if (name != null) {
+            return ResponseEntity.ok(
+                userService.findByNameWithPagination(name, currentUserId, page, size, sortBy, sortDirection)
+            );
         } else {
-            return ResponseEntity.ok(userService.findAllExceptCurrent(CurrentUserId));
+            return ResponseEntity.ok(
+                userService.findAllExceptCurrent(currentUserId, page, size, sortBy, sortDirection)
+            );
         }
     }
 

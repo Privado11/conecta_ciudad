@@ -6,9 +6,14 @@ import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -298,28 +303,92 @@ public UserDto toggleUserStatus(Long userId) {
     return userMapper.toDto(userRepository.save(user));
 }
 
-    @Override
-    public List<UserDto> findAllExceptCurrent(Long currentUserId) {
-        return userRepository.findAll()
-                .stream()
-                .filter(user -> currentUserId == null || !user.getId().equals(currentUserId))
-                .map(user -> {
-                    UserDto dto = userMapper.toDto(user);
-                    LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
-                    return new UserDto(
-                        dto.id(),
-                        dto.name(),
-                        dto.nationalId(),
-                        dto.email(),
-                        dto.phone(),
-                        dto.createdAt(),
-                        dto.roles(),
-                        dto.active(),
-                        lastAction
-                    );
-                })
-                .toList();
+@Override
+public Page<UserDto> findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    
+    if (page < 0) page = 0;
+    if (size <= 0) size = 10;
+    if (size > 100) size = 100; 
+    
+    
+    Sort.Direction direction = sortDirection != null && sortDirection.equalsIgnoreCase("desc") 
+        ? Sort.Direction.DESC 
+        : Sort.Direction.ASC;
+    
+    String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "name";
+    Sort sort = Sort.by(direction, sortField);
+    
+    
+    Pageable pageable = PageRequest.of(page, size, sort);
+    
+    
+    Page<User> userPage;
+    if (currentUserId != null) {
+        userPage = userRepository.findAllExceptUser(currentUserId, pageable);
+    } else {
+        userPage = userRepository.findAll(pageable);
     }
+    
+    
+    return userPage.map(user -> {
+        UserDto dto = userMapper.toDto(user);
+        LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+        return new UserDto(
+            dto.id(),
+            dto.name(),
+            dto.nationalId(),
+            dto.email(),
+            dto.phone(),
+            dto.createdAt(),
+            dto.roles(),
+            dto.active(),
+            lastAction
+        );
+    });
+}
+
+@Override
+public Page<UserDto> findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    if (page < 0) page = 0;
+    if (size <= 0) size = 10;
+    if (size > 100) size = 100;
+    
+   
+    Sort.Direction direction = sortDirection != null && sortDirection.equalsIgnoreCase("desc") 
+        ? Sort.Direction.DESC 
+        : Sort.Direction.ASC;
+    
+    String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "name";
+    Sort sort = Sort.by(direction, sortField);
+    
+ 
+    Pageable pageable = PageRequest.of(page, size, sort);
+    
+    Page<User> userPage;
+    if (currentUserId != null) {
+        userPage = userRepository.findByNameContainingIgnoreCaseAndIdNot(name, currentUserId, pageable);
+    } else {
+        userPage = userRepository.findByNameContainingIgnoreCase(name, pageable);
+    }
+    
+
+    return userPage.map(user -> {
+        UserDto dto = userMapper.toDto(user);
+        LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+        return new UserDto(
+            dto.id(),
+            dto.name(),
+            dto.nationalId(),
+            dto.email(),
+            dto.phone(),
+            dto.createdAt(),
+            dto.roles(),
+            dto.active(),
+            lastAction
+        );
+    });
+}
+
 
     private ActionDto logAction(UserActionType actionType, String description, Long userId) {
         if (userId == null) return null;
