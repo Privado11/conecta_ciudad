@@ -3,7 +3,9 @@ package com.unimagdalena.conectaCiudad.services.user;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -91,12 +93,26 @@ public UserDto findById(Long id) {
     }
 
     @Override
-    public List<UserDto> findAll() {
-        return userRepository.findAll()
-                .stream()
-                .map(userMapper::toDto)
-                .toList();
-    }
+public List<UserDto> findAll() {
+    return userRepository.findAll()
+            .stream()
+            .map(user -> {
+                UserDto dto = userMapper.toDto(user);
+                LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+                return new UserDto(
+                    dto.id(),
+                    dto.name(),
+                    dto.nationalId(),
+                    dto.email(),
+                    dto.phone(),
+                    dto.createdAt(),
+                    dto.roles(),
+                    dto.active(),
+                    lastAction
+                );
+            })
+            .toList();
+}
 
     @Override
     public UserDto updateUser(Long id, UserSaveDto user) {
@@ -138,15 +154,17 @@ public UserDto findById(Long id) {
         if (role == null) {
             throw new ResourceNotFoundException("Role", "name", roleName);
         }
-        List<Role> roles = new ArrayList<>(user.getRoles());
-        boolean exists = roles.stream().anyMatch(r -> r.getName().equalsIgnoreCase(role.getName()));
-        if (!exists) {
-            roles.add(role);
-            user.setRoles(roles);
-            user = userRepository.save(user);
-        }
+        
+        String oldRole = user.getRoles().isEmpty() ? "ninguno" : user.getRoles().iterator().next().getName();
+        
+        user.setRoles(Collections.singletonList(role));
+        user = userRepository.save(user);
+        
         UserDto userDto = userMapper.toDto(user);
-        logAction(UserActionType.USER_ROLE_ADDED, "Rol " + role.getName() + " agregado al usuario " + userDto.id(), userId);
+        logAction(UserActionType.USER_ROLE_ADDED, 
+                 String.format("Rol del usuario %d cambiado de %s a %s", 
+                             userDto.id(), oldRole, role.getName()), 
+                 userId);
         return userDto;
     }
 
@@ -202,6 +220,8 @@ public UserDto findById(Long id) {
         if (roles.isEmpty()) {
             throw new BadRequestException("Los roles proporcionados no existen en la base de datos");
         }
+
+        userToSave.setActive(true);
        
         userToSave.setRoles(roles);
         UserDto userDto = userMapper.toDto(userRepository.save(userToSave));
@@ -210,6 +230,96 @@ public UserDto findById(Long id) {
         return userDto;
     }
 
+    @Override
+public UserDto saveUserDefault(UserSaveDto user) {    
+
+    if (user.roles() != null && !user.roles().isEmpty()) {
+        boolean hasNonCitizen = user.roles().stream()
+            .anyMatch(r -> !r.equalsIgnoreCase("CIUDADANO"));
+        if (hasNonCitizen) {
+            throw new BadRequestException("Solo se permite el rol 'CIUDADANO'");
+        }
+    }
+
+    Optional<User> existingUser = userRepository.findByEmailOrNationalId(user.email(), user.nationalId());
+    existingUser.ifPresent(u -> {
+        if (u.getEmail().equals(user.email())) {
+            throw new DuplicateResourceException("User", "email", user.email());
+        }
+        if (u.getNationalId().equals(user.nationalId())) {
+            throw new DuplicateResourceException("User", "nationalId", user.nationalId());
+        }
+    });
+
+    
+    User userToSave = userMapper.toUserSaveDtoToEntity(user);
+    userToSave.setPassword(passwordEncoder.encode(userToSave.getPassword()));
+
+    userToSave.setActive(true);
+
+    Role defaultRole = roleRepository.findByNameContainingIgnoreCase("CIUDADANO");
+    if (defaultRole == null) {
+        throw new BadRequestException("El rol por defecto 'CIUDADANO' no existe en la base de datos");
+    }
+
+    userToSave.setRoles(List.of(defaultRole));
+
+ 
+    UserDto userDto = userMapper.toDto(userRepository.save(userToSave));
+
+   
+    logAction(
+        UserActionType.USER_CREATED,
+        "Usuario " + userDto.id() + " creado con rol: " + defaultRole.getName(),
+        userDto.id()
+    );
+
+    return userDto;
+}
+
+
+
+
+    @Override
+    public UserDto toggleUserStatus(Long userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
+        
+        
+        boolean newStatus = !user.getActive();
+        user.setActive(newStatus);
+        
+        logAction(
+            newStatus ? UserActionType.USER_ACTIVATED : UserActionType.USER_DEACTIVATED,
+            "El estado del usuario ha sido cambiado a " + (newStatus ? "activo" : "inactivo"),
+            userId
+        );
+        
+        return userMapper.toDto(userRepository.save(user));
+    }
+
+    @Override
+    public List<UserDto> findAllExceptCurrent(Long currentUserId) {
+        return userRepository.findAll()
+                .stream()
+                .filter(user -> currentUserId == null || !user.getId().equals(currentUserId))
+                .map(user -> {
+                    UserDto dto = userMapper.toDto(user);
+                    LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+                    return new UserDto(
+                        dto.id(),
+                        dto.name(),
+                        dto.nationalId(),
+                        dto.email(),
+                        dto.phone(),
+                        dto.createdAt(),
+                        dto.roles(),
+                        dto.active(),
+                        lastAction
+                    );
+                })
+                .toList();
+    }
 
     private ActionDto logAction(UserActionType actionType, String description, Long userId) {
         if (userId == null) return null;

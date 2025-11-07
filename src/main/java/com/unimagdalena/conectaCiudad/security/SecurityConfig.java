@@ -15,15 +15,21 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
+import java.util.HashMap;
 
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
 import com.unimagdalena.conectaCiudad.services.action.ActionService;
+
+import jakarta.servlet.http.HttpServletResponse;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 
 import lombok.RequiredArgsConstructor;
+import java.util.Map;
 
 @Configuration
 @EnableMethodSecurity(prePostEnabled = true)
@@ -48,32 +54,38 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-        JwtAuthenticationFilter jwtAuthFilter = 
-            new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService, accessMapper, actionService);
-        jwtAuthFilter.setFilterProcessesUrl("/auth/login"); 
+    JwtAuthenticationFilter jwtAuthFilter = 
+        new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService, accessMapper, actionService);
+    jwtAuthFilter.setFilterProcessesUrl("/auth/login");
+    
+    
+    jwtAuthFilter.setAuthenticationFailureHandler((request, response, exception) -> {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        Map<String, String> error = new HashMap<>();
+        error.put("message", "Correo o contraseña incorrectos");
+        error.put("error", exception.getMessage());
+        response.getWriter().write(new ObjectMapper().writeValueAsString(error));
+    });
 
-        return http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(management -> 
-                management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/register").permitAll() 
-                .requestMatchers("/auth/login").permitAll()
-                .requestMatchers("/").permitAll()
-                .requestMatchers("/health").permitAll()
-                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().authenticated() 
-            )
-            .exceptionHandling(exception -> 
-                exception.authenticationEntryPoint(authenticationEntryPoint)
-            )
-            .addFilter(jwtAuthFilter)
-            .addFilterBefore(new JwtAuthorizationFilter(userRepository), UsernamePasswordAuthenticationFilter.class)
-            .build();
-    }
+    return http
+        .csrf(csrf -> csrf.disable())
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .sessionManagement(management -> 
+            management.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/auth/**").permitAll() 
+            .requestMatchers("/", "/health").permitAll()
+            .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+            .anyRequest().authenticated() 
+        )
+        .anonymous(anonymous -> anonymous.disable()) 
+        .addFilter(jwtAuthFilter)
+        .addFilterBefore(new JwtAuthorizationFilter(userRepository), UsernamePasswordAuthenticationFilter.class)
+        .build();
+}
 
     @Bean
 public CorsConfigurationSource corsConfigurationSource() {

@@ -186,6 +186,6 @@ public class AuthController {
                 )
             )
             @Valid @RequestBody UserSaveDto userSaveDto) {
-        return ResponseEntity.ok(userService.saveUser(userSaveDto));
+        return ResponseEntity.ok(userService.saveUserDefault(userSaveDto));
     }
 }

@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.Dto.user;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record UserDto(
@@ -8,7 +9,8 @@ public record UserDto(
     String nationalId,
     String email,
     String phone,
-    List<String> roles
+    LocalDateTime createdAt,
+    List<String> roles,
+    Boolean active,
+    LocalDateTime lastActionAt
 ) {}
-
-

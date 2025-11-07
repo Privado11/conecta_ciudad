@@ -256,12 +256,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleAccessDeniedException(
             AccessDeniedException ex, 
             WebRequest request) {
-        
+
+        String path = request.getDescription(false).replace("uri=", "");
+    
+        if (path.contains("/auth/login") || path.contains("/auth/register")) {
+            throw ex;
+        }
+
         log.error("Access denied: {}", ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
-                .status(HttpStatus.FORBIDDEN.value())
+                .status(HttpStatus.FORBIDDEN.value())   
                 .error(HttpStatus.FORBIDDEN.getReasonPhrase())
                 .message("You don't have permission to access this resource")
                 .path(request.getDescription(false).replace("uri=", ""))

@@ -2,6 +2,8 @@ package com.unimagdalena.conectaCiudad.controllers;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
@@ -189,6 +191,8 @@ public class UserController {
                 example = "1234567890"
             )
             @RequestParam(required = false) String nationalId) {
+               Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                Long CurrentUserId = (Long) auth.getDetails();
 
         if (email != null) {
             return ResponseEntity.ok(userService.findByEmail(email));
@@ -197,7 +201,7 @@ public class UserController {
         } else if (nationalId != null) {
             return ResponseEntity.ok(userService.findByNationalId(nationalId));
         } else {
-            return ResponseEntity.ok(userService.findAll());
+            return ResponseEntity.ok(userService.findAllExceptCurrent(CurrentUserId));
         }
     }
 
@@ -662,5 +666,75 @@ public class UserController {
     public ResponseEntity<UserDto> createUserAdmin(
             @Valid @RequestBody UserSaveDto userDto) {
         return ResponseEntity.ok(userService.saveUser(userDto));
+    }
+
+    @PatchMapping("/{id}/toggle-status")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @Operation(
+        summary = "Cambiar el estado de un usuario (activar/desactivar)",
+        description = """
+            Permite a un administrador cambiar el estado de un usuario entre activo e inactivo.
+            
+            **Acciones posibles:**
+            - Activar un usuario inactivo
+            - Desactivar un usuario activo
+            
+            **Efectos:**
+            - Un usuario desactivado no podrá iniciar sesión en el sistema
+            - El cambio de estado se registra en el historial de acciones
+            
+            **Permisos requeridos:** Rol ADMIN
+            
+            **Nota:** No se puede desactivar a sí mismo el usuario que realiza la acción.
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Estado del usuario actualizado correctamente",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = UserDto.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Acceso denegado. Se requiere rol de administrador",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 403,
+                        "error": "Forbidden",
+                        "message": "Acceso denegado. Se requiere rol ADMIN"
+                    }
+                    """
+                )
+            )
+        ),
+        @ApiResponse(
+            responseCode = "404",
+            description = "Usuario no encontrado con el ID especificado",
+            content = @Content(
+                examples = @ExampleObject(
+                    value = """
+                    {
+                        "status": 404,
+                        "error": "Not Found",
+                        "message": "No se encontró el usuario con ID: 999"
+                    }
+                    """
+                )
+            )
+        )
+    })
+    public ResponseEntity<UserDto> toggleUserStatus(
+            @Parameter(
+                description = "ID único del usuario cuyo estado se desea cambiar",
+                example = "1",
+                required = true
+            )
+            @PathVariable Long id) {
+        return ResponseEntity.ok(userService.toggleUserStatus(id));
     }
 }

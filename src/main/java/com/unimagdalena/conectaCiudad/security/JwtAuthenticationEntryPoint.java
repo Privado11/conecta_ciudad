@@ -20,8 +20,16 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
+        
+        String requestUri = request.getRequestURI();
+        
+       
+        if (requestUri.equals("/auth/login") || requestUri.equals("/auth/register")) {
+            return;
+        }
+        
         Map<String, String> json = new HashMap<>();
-        json.put("message", "You do not have permission to perform this action.");
+        json.put("message", "You do not have permission to perform this action11.");
         json.put("error", authException.getMessage());
 
         response.setContentType("application/json");

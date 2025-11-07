@@ -4,6 +4,8 @@ public enum UserActionType {
     USER_CREATED("Creación de usuario"),
     USER_UPDATED("Actualización de usuario"),
     USER_DELETED("Eliminación de usuario"),
+    USER_ACTIVATED("Activación de usuario"),
+    USER_DEACTIVATED("Desactivación de usuario"),
     USER_ROLE_ADDED("Adición de rol al usuario"),
     USER_ROLE_REMOVED("Remoción de rol del usuario"),
     USER_LOGIN("Inicio de sesión");

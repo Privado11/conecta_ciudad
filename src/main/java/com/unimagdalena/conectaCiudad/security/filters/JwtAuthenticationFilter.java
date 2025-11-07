@@ -80,6 +80,12 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
             return;
         }
 
+        if (!userEntity.getActive()) {
+
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Tu cuenta está desactivada. Contacta al administrador.");
+            return;
+        }
+
         String ipAddress = getIp(request);
         String userAgent = request.getHeader("User-Agent");
         String location = getLocationFromIp(ipAddress);
@@ -107,11 +113,15 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         
         response.addHeader(HEADER_AUTHORIZATION, PREFIX_TOKEN + token);
 
-        Map<String, String> json=new HashMap<>();
+        Map<String, Object> json=new HashMap<>();
         json.put("token", token);
-        json.put("id", userEntity.getId().toString());
-        json.put("username", springUser.getUsername());
-        json.put("message", "Bienvenido " + springUser.getUsername() + ", has iniciado sesión correctamente");
+        json.put("user", Map.of(
+            "id", userEntity.getId(),
+            "name", userEntity.getName(),
+            "email", userEntity.getEmail(),
+            "roles", roleNames
+        ));
+        json.put("message", "Bienvenido " + userEntity.getName() + ", has iniciado sesión correctamente");
 
         response.getWriter().write(new ObjectMapper().writeValueAsString(json));
         response.setContentType(CONTENT_TYPE);
@@ -126,7 +136,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response, AuthenticationException failed) throws IOException, ServletException {
         Map<String, String> json=new HashMap<>();
         
-        json.put("message", "Error en la autenticación: username o password incorrectos");
+        json.put("message", "Correo o contraseña incorrectos");
         json.put("error", failed.getMessage());
 
         response.getWriter().write(new ObjectMapper().writeValueAsString(json));
