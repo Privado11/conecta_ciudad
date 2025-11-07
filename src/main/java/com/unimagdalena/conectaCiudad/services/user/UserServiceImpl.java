@@ -280,23 +280,23 @@ public UserDto saveUserDefault(UserSaveDto user) {
 
 
 
-    @Override
-    public UserDto toggleUserStatus(Long userId) {
-        User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
-        
-        
-        boolean newStatus = !user.getActive();
-        user.setActive(newStatus);
-        
-        logAction(
-            newStatus ? UserActionType.USER_ACTIVATED : UserActionType.USER_DEACTIVATED,
-            "El estado del usuario ha sido cambiado a " + (newStatus ? "activo" : "inactivo"),
-            userId
-        );
-        
-        return userMapper.toDto(userRepository.save(user));
-    }
+@Override
+public UserDto toggleUserStatus(Long userId) {
+    User user = userRepository.findById(userId)
+        .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + userId));
+    
+    boolean newStatus = !user.getActive();
+    user.setActive(newStatus);
+
+    System.out.println("El estado del usuario ha sido cambiado a " + (newStatus ? "activo" : "inactivo"));
+    
+    logActionForAdmin(
+        newStatus ? UserActionType.USER_ACTIVATED : UserActionType.USER_DEACTIVATED,
+        "El estado del usuario " + user.getEmail() + " ha sido cambiado a " + (newStatus ? "activo" : "inactivo")
+    );
+    
+    return userMapper.toDto(userRepository.save(user));
+}
 
     @Override
     public List<UserDto> findAllExceptCurrent(Long currentUserId) {
@@ -331,6 +331,19 @@ public UserDto saveUserDefault(UserSaveDto user) {
         if (access == null) return null;
 
         return actionService.save(new ActionSaveDto(actionType.name(), description, user, access));
+    }
+
+    private ActionDto logActionForAdmin(UserActionType actionType, String description) {
+        Long accessId = (Long) request.getAttribute("currentAccessId");
+        if (accessId == null) return null;
+        
+        Access access = accessService.findById(accessId);
+        if (access == null) return null;
+        
+        User admin = access.getUser();
+        if (admin == null) return null;
+    
+        return actionService.save(new ActionSaveDto(actionType.name(), description, admin, access));
     }
 }
 

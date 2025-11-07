@@ -12,7 +12,7 @@ import com.unimagdalena.conectaCiudad.entities.Action;
 public interface ActionRepository extends JpaRepository<Action, Long> {
     List<Action> findByUserId(Long userId);
     List<Action> findByNameContainingIgnoreCase(String name);
-    @Query("SELECT a.actionAt FROM Action a WHERE a.user.id = :userId ORDER BY a.actionAt DESC LIMIT 1")
+    @Query("SELECT a.access.accessAt FROM Action a WHERE a.user.id = :userId ORDER BY a.actionAt DESC LIMIT 1")
     LocalDateTime findLastActionDateByUserId(@Param("userId") Long userId);
 }
 
