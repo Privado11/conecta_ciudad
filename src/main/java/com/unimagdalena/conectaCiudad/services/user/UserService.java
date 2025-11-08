@@ -24,6 +24,13 @@ public interface UserService {
     UserDto toggleUserStatus(Long userId);
     Page<UserDto> findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection);
     Page<UserDto> findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection);
-
+    Page<UserDto> findByFilters(String roleName, Boolean active, Long currentUserId, 
+                                 int page, int size, String sortBy, String sortDirection);
+    Page<UserDto> findByNameAndFilters(String name, String roleName, Boolean active, 
+                                        Long currentUserId, int page, int size, 
+                                        String sortBy, String sortDirection);
+    void validateUniqueFields(String email, String nationalId);
+    
 }
+
 

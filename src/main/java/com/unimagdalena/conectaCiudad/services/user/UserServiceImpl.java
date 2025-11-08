@@ -389,6 +389,124 @@ public Page<UserDto> findByNameWithPagination(String name, Long currentUserId, i
     });
 }
 
+@Override
+public Page<UserDto> findByFilters(String roleName, Boolean active, Long currentUserId,
+                                    int page, int size, String sortBy, String sortDirection) {
+    if (page < 0) page = 0;
+    if (size <= 0) size = 10;
+    if (size > 100) size = 100;
+    
+    String normalizedRole = "";
+    if (roleName != null && !roleName.isBlank()) {
+        normalizedRole = roleName.trim().toUpperCase();
+        if (!ALLOWED_ROLE_NAMES.contains(normalizedRole)) {
+            throw new BadRequestException("Rol no válido: " + roleName + 
+                ". Roles permitidos: " + String.join(", ", ALLOWED_ROLE_NAMES));
+        }
+    }
+    
+    Sort.Direction direction = sortDirection != null && sortDirection.equalsIgnoreCase("desc") 
+        ? Sort.Direction.DESC 
+        : Sort.Direction.ASC;
+    
+    String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "name";
+    Sort sort = Sort.by(direction, sortField);
+    
+    Pageable pageable = PageRequest.of(page, size, sort);
+    
+    Page<User> userPage = userRepository.findByRoleAndActiveStatus(
+        normalizedRole, 
+        active, 
+        currentUserId, 
+        pageable
+    );
+    
+    return userPage.map(user -> {
+        UserDto dto = userMapper.toDto(user);
+        LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+        return new UserDto(
+            dto.id(),
+            dto.name(),
+            dto.nationalId(),
+            dto.email(),
+            dto.phone(),
+            dto.createdAt(),
+            dto.roles(),
+            dto.active(),
+            lastAction
+        );
+    });
+}
+
+@Override
+public void validateUniqueFields(String email, String nationalId) {
+    if (email == null && nationalId == null) {
+        return; 
+    }
+
+    Optional<User> existingUser = userRepository.findByEmailOrNationalId(email, nationalId);
+    existingUser.ifPresent(u -> {
+        if (email != null && u.getEmail().equalsIgnoreCase(email)) {
+            throw new DuplicateResourceException("User", "email", email);
+        }
+        if (nationalId != null && u.getNationalId().equalsIgnoreCase(nationalId)) {
+            throw new DuplicateResourceException("User", "nationalId", nationalId);
+        }
+    });
+}
+
+
+@Override
+public Page<UserDto> findByNameAndFilters(String name, String roleName, Boolean active, 
+                                           Long currentUserId, int page, int size, 
+                                           String sortBy, String sortDirection) {
+    if (page < 0) page = 0;
+    if (size <= 0) size = 10;
+    if (size > 100) size = 100;
+    
+    String normalizedRole = "";
+    if (roleName != null && !roleName.isBlank()) {
+        normalizedRole = roleName.trim().toUpperCase();
+        if (!ALLOWED_ROLE_NAMES.contains(normalizedRole)) {
+            throw new BadRequestException("Rol no válido: " + roleName + 
+                ". Roles permitidos: " + String.join(", ", ALLOWED_ROLE_NAMES));
+        }
+    }
+    
+    Sort.Direction direction = sortDirection != null && sortDirection.equalsIgnoreCase("desc") 
+        ? Sort.Direction.DESC 
+        : Sort.Direction.ASC;
+    
+    String sortField = (sortBy != null && !sortBy.isBlank()) ? sortBy : "name";
+    Sort sort = Sort.by(direction, sortField);
+    
+    Pageable pageable = PageRequest.of(page, size, sort);
+    
+    Page<User> userPage = userRepository.findByNameAndRoleAndActiveStatus(
+        name,
+        normalizedRole,
+        active,
+        currentUserId,
+        pageable
+    );
+    
+    return userPage.map(user -> {
+        UserDto dto = userMapper.toDto(user);
+        LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+        return new UserDto(
+            dto.id(),
+            dto.name(),
+            dto.nationalId(),
+            dto.email(),
+            dto.phone(),
+            dto.createdAt(),
+            dto.roles(),
+            dto.active(),
+            lastAction
+        );
+    });
+}
+
 
     private ActionDto logAction(UserActionType actionType, String description, Long userId) {
         if (userId == null) return null;

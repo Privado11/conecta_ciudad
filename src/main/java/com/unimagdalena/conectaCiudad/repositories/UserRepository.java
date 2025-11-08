@@ -17,6 +17,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmailOrNationalId(String email, String nationalId);
     List<User> findByNameContainingIgnoreCase(String name);
     List<User> findByRoles_NameIgnoreCase(String roleName);
+    
     @Query("SELECT u FROM User u WHERE u.id <> :userId")
     Page<User> findAllExceptUser(@Param("userId") Long userId, Pageable pageable);
 
@@ -26,7 +27,30 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT u FROM User u WHERE LOWER(u.name) LIKE CONCAT('%', LOWER(:name), '%')")
     Page<User> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN u.roles r " +
+           "WHERE (:roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND (:active IS NULL OR u.active = :active) " +
+           "AND (:currentUserId IS NULL OR u.id <> :currentUserId)")
+    Page<User> findByRoleAndActiveStatus(
+        @Param("roleName") String roleName,
+        @Param("active") Boolean active,
+        @Param("currentUserId") Long currentUserId,
+        Pageable pageable
+    );
     
+  
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN u.roles r " +
+           "WHERE LOWER(u.name) LIKE CONCAT('%', LOWER(:name), '%') " +
+           "AND (:roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND (:active IS NULL OR u.active = :active) " +
+           "AND (:currentUserId IS NULL OR u.id <> :currentUserId)")
+    Page<User> findByNameAndRoleAndActiveStatus(
+        @Param("name") String name,
+        @Param("roleName") String roleName,
+        @Param("active") Boolean active,
+        @Param("currentUserId") Long currentUserId,
+        Pageable pageable
+    );
 }
-
-
