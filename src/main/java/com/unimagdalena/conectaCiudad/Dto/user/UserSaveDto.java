@@ -2,6 +2,8 @@ package com.unimagdalena.conectaCiudad.Dto.user;
 
 import java.util.List;
 
+import com.unimagdalena.conectaCiudad.validation.OnCreate;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,8 +20,8 @@ public record UserSaveDto(
     @Email(message = "Invalid email format")
     String email,
     
-    @NotBlank(message = "Password is required")
-    @Size(min = 6, message = "Password must be at least 6 characters long")
+    @NotBlank(groups = OnCreate.class, message = "Password is required")
+    @Size(groups = OnCreate.class, min = 6, message = "Password must be at least 6 characters long")
     String password,
     
     String phone,

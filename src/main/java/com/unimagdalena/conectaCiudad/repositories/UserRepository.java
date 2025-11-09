@@ -53,4 +53,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @Param("currentUserId") Long currentUserId,
         Pageable pageable
     );
+
+    @Query("SELECT u FROM User u WHERE u.email IN :emails OR u.nationalId IN :nationalIds")
+    List<User> findByEmailInOrNationalIdIn(
+        @Param("emails") List<String> emails, 
+        @Param("nationalIds") List<String> nationalIds
+    );
+
 }

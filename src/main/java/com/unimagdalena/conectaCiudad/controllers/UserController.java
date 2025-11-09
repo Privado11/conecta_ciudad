@@ -1,16 +1,20 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.services.user.UserService;
+import com.unimagdalena.conectaCiudad.validation.OnCreate;
+import com.unimagdalena.conectaCiudad.validation.OnUpdate;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -20,8 +24,16 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.web.multipart.MultipartFile;
+import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/v1/users")
@@ -357,7 +369,7 @@ public ResponseEntity<?> searchUsers(
                 required = true
             )
             @PathVariable Long id, 
-            @Valid @RequestBody UserSaveDto userDto) {
+            @Validated(OnUpdate.class) @RequestBody UserSaveDto userDto) {
         return ResponseEntity.ok(userService.updateUser(id, userDto));
     }
 
@@ -735,7 +747,7 @@ public ResponseEntity<?> searchUsers(
         )
     })
     public ResponseEntity<UserDto> createUserAdmin(
-            @Valid @RequestBody UserSaveDto userDto) {
+            @Validated(OnCreate.class) @RequestBody UserSaveDto userDto) {
         return ResponseEntity.ok(userService.saveUser(userDto));
     }
 
@@ -891,5 +903,271 @@ public ResponseEntity<?> validateEmailOrNationalId(
         Map.of("available", true, "message", "El email y/o la cédula están disponibles")
     );
 }
+
+@PostMapping("/import")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @Operation(
+        summary = "Importar múltiples usuarios desde archivo CSV",
+        description = """
+            Permite a un administrador importar múltiples usuarios al sistema mediante un archivo CSV.
+            
+            **Formato del archivo CSV requerido:**
+            
+            ```csv
+            name,email,nationalId,phone,password,role
+            Juan Pérez,juan@example.com,1234567890,+573001234567,Password123,ADMIN
+            María López,maria@example.com,9876543210,+573009876543,Password456,CIUDADANO
+            Pedro García,pedro@example.com,5555555555,+573005555555,Password789,CURATOR
+            ```
+            
+            **Campos del CSV:**
+            - **name** (obligatorio): Nombre completo del usuario
+            - **email** (obligatorio): Correo electrónico único
+            - **nationalId** (obligatorio): Número de identificación nacional único
+            - **phone** (obligatorio): Número telefónico
+            - **password** (obligatorio): Contraseña en texto plano (se encriptará automáticamente)
+            - **role** (opcional): Rol del usuario. Si no se especifica, se asigna "CIUDADANO"
+            
+            **Roles válidos:**
+            - ADMIN, CIUDADANO, CURATOR, LIDER_COMUNITARIO
+            
+            **Validaciones automáticas:**
+            1. **Duplicados dentro del CSV:** Detecta emails o cédulas duplicadas en el mismo archivo
+            2. **Duplicados en BD:** Verifica que emails y cédulas no existan en la base de datos
+            3. **Campos obligatorios:** Valida que todos los campos requeridos estén presentes
+            4. **Roles válidos:** Verifica que los roles especificados sean correctos
+            5. **Formato de datos:** Valida que el formato de emails y teléfonos sea correcto
+            
+            **Procesamiento:**
+            - Se procesan todos los registros válidos
+            - Los registros con errores se reportan detalladamente (número de fila y motivo)
+            - La operación es **transaccional**: si hay un error crítico, se hace rollback completo
+            - Los registros exitosos se guardan en lote para optimizar rendimiento
+            
+            **Respuesta:**
+            La respuesta incluye:
+            - Total de registros procesados
+            - Cantidad de importaciones exitosas
+            - Cantidad de importaciones fallidas
+            - Lista detallada de errores (fila, email, cédula, rol, mensaje de error)
+            - Lista de usuarios importados exitosamente
+            
+            **Ejemplo de respuesta:**
+            ```json
+            {
+                "totalProcessed": 100,
+                "successfulImports": 95,
+                "failedImports": 5,
+                "errors": [
+                    {
+                        "rowNumber": 3,
+                        "email": "duplicado@example.com",
+                        "nationalId": "1234567890",
+                        "role": "ADMIN",
+                        "errorMessage": "El email ya existe en la base de datos"
+                    }
+                ],
+                "importedUsers": [...]
+            }
+            ```
+            
+            **Notas importantes:**
+            - El archivo debe estar en formato CSV con encoding UTF-8
+            - El tamaño máximo del archivo depende de la configuración del servidor
+            - Se recomienda no superar 1000 usuarios por archivo para mejor rendimiento
+            - La primera fila puede ser un header (se detecta automáticamente)
+            - Los valores con comas deben estar entre comillas: "Pérez, Juan"
+            
+            **Permisos:** Solo usuarios con rol ADMIN pueden importar usuarios
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Importación completada (puede incluir errores parciales). Revisa el detalle de la respuesta.",
+            content = @Content(
+                mediaType = "application/json",
+                schema = @Schema(implementation = BulkUserImportResult.class)
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Archivo inválido, formato incorrecto, o error crítico durante el procesamiento",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "No autorizado - Se requiere rol ADMIN para importar usuarios",
+            content = @Content
+        )
+    })
+    public ResponseEntity<BulkUserImportResult> importUsers(
+            @Parameter(
+                description = "Archivo CSV con los datos de los usuarios a importar",
+                required = true
+            )
+            @RequestParam("file") MultipartFile file) throws IOException {
+        
+        BulkUserImportResult result = userService.importUsersFromCSV(file);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/export")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @Operation(
+        summary = "Exportar usuarios a archivo CSV",
+        description = """
+            Permite a un administrador exportar usuarios del sistema a un archivo CSV.
+            
+            **Parámetros de filtrado:**
+            - **name:** Filtrar por nombre (búsqueda parcial)
+            - **role:** Filtrar por rol específico
+            - **active:** Filtrar por estado (true/false)
+            - **Sin parámetros:** Exporta TODOS los usuarios del sistema
+            
+            **Formato del archivo CSV generado:**
+            ```csv
+            name,email,nationalId,phone,role,active,createdAt
+            Juan Pérez,juan@example.com,1234567890,+573001234567,ADMIN,true,2024-01-15T10:30:00
+            ```
+            
+            **Características del archivo:**
+            - Encoding UTF-8 (compatible con Excel y Google Sheets)
+            - Valores con comas automáticamente escapados entre comillas
+            - Formato de fecha: ISO 8601
+            - Header descriptivo en la primera fila
+            
+            **Ejemplos de uso:**
+            - `/api/v1/users/export` → Exporta todos los usuarios
+            - `/api/v1/users/export?role=ADMIN` → Solo administradores
+            - `/api/v1/users/export?active=false` → Solo usuarios inactivos
+            
+            **Permisos:** Solo usuarios con rol ADMIN pueden exportar usuarios
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Archivo CSV generado exitosamente",
+            content = @Content(mediaType = "text/csv")
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Parámetros de filtrado inválidos",
+            content = @Content
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "No autorizado - Se requiere rol ADMIN",
+            content = @Content
+        )
+    })
+    public ResponseEntity<byte[]> exportUsers(
+            @Parameter(description = "Filtrar por nombre (búsqueda parcial)")
+            @RequestParam(required = false) String name,
+            
+            @Parameter(description = "Filtrar por rol")
+            @RequestParam(required = false) String role,
+            
+            @Parameter(description = "Filtrar por estado")
+            @RequestParam(required = false) Boolean active,
+            
+            @Parameter(description = "Número de página")
+            @RequestParam(defaultValue = "0") int page,
+            
+            @Parameter(description = "Elementos por página")
+            @RequestParam(defaultValue = "1000") int size,
+            
+            @Parameter(description = "Campo para ordenar")
+            @RequestParam(defaultValue = "name") String sortBy,
+            
+            @Parameter(description = "Dirección del ordenamiento")
+            @RequestParam(defaultValue = "asc") String sortDirection) throws IOException {
+        
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long currentUserId = (Long) auth.getDetails();
+        
+
+        List<UserDto> users;
+        
+        if (name != null) {
+            Page<UserDto> pagedUsers = userService.findByNameAndFilters(
+                name, role, active, currentUserId, page, size, sortBy, sortDirection
+            );
+            users = pagedUsers.getContent();
+        } else if (role != null || active != null) {
+            Page<UserDto> pagedUsers = userService.findByFilters(
+                role, active, currentUserId, page, size, sortBy, sortDirection
+            );
+            users = pagedUsers.getContent();
+        } else {
+            users = userService.findAll();
+        }
+        
+
+        byte[] csvData = userService.exportUsersToCSV(users);
+        
+
+        String timestamp = LocalDateTime.now().format(
+            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        );
+        String filename = "usuarios_" + timestamp + ".csv";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv; charset=UTF-8"));
+        headers.setContentDispositionFormData("attachment", filename);
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csvData);
+    }
+
+    @GetMapping("/export/all")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @Operation(
+        summary = "Exportar TODOS los usuarios del sistema a CSV",
+        description = """
+            Exporta todos los usuarios del sistema sin aplicar ningún filtro.
+            
+            **Uso recomendado:**
+            - Backup completo de usuarios
+            - Auditoría general del sistema
+            - Migración completa de datos
+            
+            **Formato del archivo:** Mismo formato CSV que el endpoint /export
+            
+            **Permisos:** Solo usuarios con rol ADMIN
+            """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Archivo CSV con todos los usuarios generado exitosamente",
+            content = @Content(mediaType = "text/csv")
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "No autorizado - Se requiere rol ADMIN",
+            content = @Content
+        )
+    })
+    public ResponseEntity<byte[]> exportAllUsers() throws IOException {
+        byte[] csvData = userService.exportAllUsersToCSV();
+        
+        String timestamp = LocalDateTime.now().format(
+            DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+        );
+        String filename = "usuarios_completo_" + timestamp + ".csv";
+        
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("text/csv; charset=UTF-8"));
+        headers.setContentDispositionFormData("attachment", filename);
+        headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+        
+        return ResponseEntity.ok()
+                .headers(headers)
+                .body(csvData);
+    }
 
 }

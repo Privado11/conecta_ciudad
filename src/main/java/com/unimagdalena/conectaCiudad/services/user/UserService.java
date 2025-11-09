@@ -1,10 +1,12 @@
 package com.unimagdalena.conectaCiudad.services.user;
 
+import java.io.IOException;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 
@@ -30,6 +32,11 @@ public interface UserService {
                                         Long currentUserId, int page, int size, 
                                         String sortBy, String sortDirection);
     void validateUniqueFields(String email, String nationalId);
+     BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOException;
+    
+    BulkUserImportResult saveBulkUsers(List<UserSaveDto> users);
+    byte[] exportUsersToCSV(List<UserDto> users) throws IOException;
+    byte[] exportAllUsersToCSV() throws IOException;
     
 }
 

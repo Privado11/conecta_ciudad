@@ -1,11 +1,13 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.services.user.UserService;
+import com.unimagdalena.conectaCiudad.validation.OnCreate;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -15,7 +17,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 
@@ -185,7 +186,7 @@ public class AuthController {
                     )
                 )
             )
-            @Valid @RequestBody UserSaveDto userSaveDto) {
+            @Validated(OnCreate.class) @RequestBody UserSaveDto userSaveDto) {
         return ResponseEntity.ok(userService.saveUserDefault(userSaveDto));
     }
 }
