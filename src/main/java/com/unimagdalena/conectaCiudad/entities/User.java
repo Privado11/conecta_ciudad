@@ -4,22 +4,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "users")
@@ -45,14 +31,14 @@ public class User {
     @Column(nullable = false, length = 60)
     private String password;
 
-    @Column(columnDefinition = "boolean default true", nullable = true)
+    @Column(columnDefinition = "boolean default true")
     private Boolean active;
 
     @Column(length = 20, nullable = false)
     private String phone;
     
-    @Column(name = "created_at", nullable = true)
     @CreationTimestamp
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @ManyToMany(fetch = FetchType.EAGER)
@@ -60,9 +46,32 @@ public class User {
         name = "users_roles",
         joinColumns = @JoinColumn(name = "user_id"),
         inverseJoinColumns = @JoinColumn(name = "role_id"),
-        uniqueConstraints = { @UniqueConstraint(columnNames = { "user_id", "role_id" }) }
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "role_id"})
     )
-    List<Role> roles;
+    private List<Role> roles;
+
+    @OneToMany(
+        mappedBy = "user",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    private List<Access> accesses;
+
+
+    @OneToMany(
+        mappedBy = "user",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    private List<Action> actions;
+
+    @OneToMany(
+        mappedBy = "curator",
+        cascade = CascadeType.ALL,
+        orphanRemoval = true
+    )
+    private List<Review> reviews;
+
+    @OneToMany(mappedBy = "creator")
+    private List<Project> projects;
 }
-
-

@@ -36,8 +36,10 @@ import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserStatistics;
 import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.entities.Access;
+import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
@@ -148,35 +150,84 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void deleteUser(Long id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
-        
-        validateUserCanBeDeleted(id);
-        
-        UserDto userDto = userMapper.toDto(user);
-        logAction(UserActionType.USER_DELETED, "Usuario eliminado " + userDto.id(), id);
-        userRepository.delete(user);
+@Transactional
+public void deleteUser(Long id) {
+    log.info("Iniciando eliminación del usuario con ID: {}", id);
+    
+   
+    User user = userRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+    
+    
+    long activeProjects = projectRepository.countByCreatorIdAndStatus(
+        id, 
+        ProjectStatus.PUBLICADO
+    );
+    
+    if (activeProjects > 0) {
+        throw new BadRequestException(
+            "No se puede eliminar el usuario porque tiene " + activeProjects + 
+            " proyecto(s) activo(s). Finalice o reasigne los proyectos primero."
+        );
     }
+    
+    
+    List<Project> inactiveProjects = projectRepository
+        .findByCreatorIdAndStatusNot(id, ProjectStatus.PUBLICADO);
+    
+    if (!inactiveProjects.isEmpty()) {
+        
+        User systemUser = userRepository.findById(1L)
+            .orElseThrow(() -> new IllegalStateException(
+                "Usuario sistema no encontrado. Cree un usuario con ID=1 para reasignaciones."
+            ));
+        
+        log.info("Reasignando {} proyectos inactivos al usuario sistema", 
+                 inactiveProjects.size());
+        
+        inactiveProjects.forEach(project -> project.setCreator(systemUser));
+        projectRepository.saveAll(inactiveProjects);
+    }
+    
+    
+    String userName = user.getName();
+    String userEmail = user.getEmail();
+    
+    
+    userRepository.delete(user);
+    
+    log.info("Usuario {} ({}) eliminado exitosamente", userName, userEmail);
+    
+    try {
+        logActionForAdmin(
+            UserActionType.USER_DELETED, 
+            String.format("Usuario eliminado: %s (%s)", userName, userEmail)
+        );
+    } catch (Exception e) {
+        log.warn("No se pudo registrar la acción de eliminación: {}", e.getMessage());
+    }
+}
 
     @Override
     public UserDto addRole(Long userId, String roleName) {
-        User user = findUserById(userId);
-        String normalizedRole = validateAndNormalizeRole(roleName);
-        Role role = findRoleByName(normalizedRole);
-        
-        String oldRole = user.getRoles().isEmpty() ? "ninguno" : user.getRoles().iterator().next().getName();
-        
-        user.setRoles(Collections.singletonList(role));
-        user = userRepository.save(user);
-        
-        UserDto userDto = userMapper.toDto(user);
-        logAction(UserActionType.USER_ROLE_ADDED, 
-                 String.format("Rol del usuario %d cambiado de %s a %s", 
-                             userDto.id(), oldRole, role.getName()), 
-                 userId);
-        return userDto;
-    }
+    User user = findUserById(userId);
+    String normalizedRole = validateAndNormalizeRole(roleName);
+    Role role = findRoleByName(normalizedRole);
+    
+    String oldRole = user.getRoles().isEmpty() ? "ninguno" : user.getRoles().iterator().next().getName();
+    
+    user.getRoles().clear();
+    user.getRoles().add(role);
+    
+    user = userRepository.save(user);
+    
+    UserDto userDto = userMapper.toDto(user);
+    logAction(UserActionType.USER_ROLE_ADDED, 
+             String.format("Rol del usuario %d cambiado de %s a %s", 
+                         userDto.id(), oldRole, role.getName()), 
+             userId);
+    return userDto;
+}
 
     @Override
     public UserDto removeRole(Long userId, String roleName) {
@@ -354,18 +405,32 @@ public class UserServiceImpl implements UserService {
         if (email == null && nationalId == null) {
             return;
         }
-
-        Optional<User> existingUser = userRepository.findByEmailOrNationalId(email, nationalId);
-        existingUser.ifPresent(u -> {
-            if (email != null && u.getEmail().equalsIgnoreCase(email)) {
-                throw new DuplicateResourceException("User", "email", email);
-            }
-            if (nationalId != null && u.getNationalId().equalsIgnoreCase(nationalId)) {
-                throw new DuplicateResourceException("User", "nationalId", nationalId);
-            }
-        });
+    
+        List<User> existingUsers = userRepository.findByEmailInOrNationalIdIn(
+            email != null ? List.of(email) : List.of(),
+            nationalId != null ? List.of(nationalId) : List.of()
+        );
+        
+        if (existingUsers.isEmpty()) {
+            return;
+        }
+        
+        boolean emailExists = email != null && existingUsers.stream()
+            .anyMatch(u -> u.getEmail().equalsIgnoreCase(email));
+        
+        boolean nationalIdExists = nationalId != null && existingUsers.stream()
+            .anyMatch(u -> u.getNationalId().equalsIgnoreCase(nationalId));
+        
+        if (emailExists && nationalIdExists) {
+            throw new BadRequestException(
+                "El email '" + email + "' y la cédula '" + nationalId + "' ya están registrados"
+            );
+        } else if (emailExists) {
+            throw new DuplicateResourceException("User", "email", email);
+        } else if (nationalIdExists) {
+            throw new DuplicateResourceException("User", "nationalId", nationalId);
+        }
     }
-
     @Override
     @Transactional
     public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
@@ -738,16 +803,34 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
     }
 
     private void validateUniqueFieldsForNewUser(String email, String nationalId) {
-        Optional<User> existingUser = userRepository.findByEmailOrNationalId(email, nationalId);
-        existingUser.ifPresent(u -> {
-            if (u.getEmail().equals(email)) {
-                throw new DuplicateResourceException("User", "email", email);
-            }
-            if (u.getNationalId().equals(nationalId)) {
-                throw new DuplicateResourceException("User", "nationalId", nationalId);
-            }
-        });
+        List<User> existingUsers = userRepository.findByEmailInOrNationalIdIn(
+            email != null ? List.of(email) : List.of(),
+            nationalId != null ? List.of(nationalId) : List.of()
+        );
+        
+        if (existingUsers.isEmpty()) {
+            return;
+        }
+        
+        boolean emailExists = existingUsers.stream()
+            .anyMatch(u -> u.getEmail().equalsIgnoreCase(email));
+        
+        boolean nationalIdExists = existingUsers.stream()
+            .anyMatch(u -> u.getNationalId().equalsIgnoreCase(nationalId));
+        
+        if (emailExists && nationalIdExists) {
+            throw new DuplicateResourceException(
+                "User", 
+                "email y nationalId", 
+                "email: " + email + " y cédula: " + nationalId
+            );
+        } else if (emailExists) {
+            throw new DuplicateResourceException("User", "email", email);
+        } else if (nationalIdExists) {
+            throw new DuplicateResourceException("User", "nationalId", nationalId);
+        }
     }
+    
 
     private User createUserFromDto(UserSaveDto user) {
         User userToSave = userMapper.toUserSaveDtoToEntity(user);
