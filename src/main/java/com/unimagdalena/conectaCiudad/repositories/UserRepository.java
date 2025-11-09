@@ -60,4 +60,62 @@ public interface UserRepository extends JpaRepository<User, Long> {
         @Param("nationalIds") List<String> nationalIds
     );
 
+    long countByActive(Boolean active);
+    
+    @Query("SELECT COUNT(u) FROM User u WHERE :currentUserId IS NULL OR u.id != :currentUserId")
+    long countExcludingUser(@Param("currentUserId") Long currentUserId);
+    
+    @Query("SELECT COUNT(u) FROM User u WHERE u.active = :active AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByActiveExcludingUser(@Param("active") Boolean active, @Param("currentUserId") Long currentUserId);
+    
+    @Query("SELECT COUNT(u) FROM User u LEFT JOIN u.roles r " +
+           "WHERE (:roleName IS NULL OR :roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByRoleAndCurrentUser(@Param("roleName") String roleName, 
+                                    @Param("currentUserId") Long currentUserId);
+    
+ 
+    @Query("SELECT COUNT(u) FROM User u LEFT JOIN u.roles r " +
+           "WHERE (:roleName IS NULL OR :roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND u.active = :active " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByRoleAndActiveAndCurrentUser(@Param("roleName") String roleName,
+                                             @Param("active") Boolean active,
+                                             @Param("currentUserId") Long currentUserId);
+    
+   
+    @Query("SELECT COUNT(u) FROM User u LEFT JOIN u.roles r " +
+           "WHERE (:name IS NULL OR UPPER(u.name) LIKE UPPER(CONCAT('%', :name, '%'))) " +
+           "AND (:roleName IS NULL OR :roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByNameAndRoleAndCurrentUser(@Param("name") String name,
+                                          @Param("roleName") String roleName,
+                                          @Param("currentUserId") Long currentUserId);
+    
+  
+    @Query("SELECT COUNT(u) FROM User u LEFT JOIN u.roles r " +
+           "WHERE (:name IS NULL OR UPPER(u.name) LIKE UPPER(CONCAT('%', :name, '%'))) " +
+           "AND (:roleName IS NULL OR :roleName = '' OR UPPER(r.name) = UPPER(:roleName)) " +
+           "AND u.active = :active " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByNameAndRoleAndActiveAndCurrentUser(@Param("name") String name,
+                                                     @Param("roleName") String roleName,
+                                                     @Param("active") Boolean active,
+                                                     @Param("currentUserId") Long currentUserId);
+    
+   
+    @Query("SELECT COUNT(u) FROM User u " +
+           "WHERE UPPER(u.name) LIKE UPPER(CONCAT('%', :name, '%')) " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByNameAndCurrentUser(@Param("name") String name, 
+                                    @Param("currentUserId") Long currentUserId);
+
+    @Query("SELECT COUNT(u) FROM User u " +
+           "WHERE UPPER(u.name) LIKE UPPER(CONCAT('%', :name, '%')) " +
+           "AND u.active = :active " +
+           "AND (:currentUserId IS NULL OR u.id != :currentUserId)")
+    long countByNameAndActiveAndCurrentUser(@Param("name") String name,
+                                            @Param("active") Boolean active,
+                                            @Param("currentUserId") Long currentUserId);
+
 }

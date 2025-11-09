@@ -31,6 +31,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import com.unimagdalena.conectaCiudad.Dto.user.PagedUserResponse;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -109,184 +111,140 @@ public class UserController {
     }
 
     @GetMapping
-@Operation(
-    summary = "Buscar y listar usuarios con filtros avanzados y paginación",
-    description = """
-    Permite buscar usuarios aplicando múltiples criterios de filtrado con soporte de paginación.
-    
-    **Criterios de búsqueda disponibles:**
-    - **Por nombre:** Búsqueda parcial case-insensitive (ej: "walter" encuentra "Walter Jiménez")
-    - **Por email:** Búsqueda exacta del correo electrónico (SIN paginación)
-    - **Por cédula/ID nacional:** Búsqueda exacta del número de identificación (SIN paginación)
-    - **Por rol:** Filtra usuarios que tengan el rol especificado
-    - **Por estado:** Filtra usuarios activos (true) o inactivos (false)
-    - **Combinado:** Puedes combinar rol + estado (ej: admins activos, curadores inactivos)
-    - **Sin filtros:** Retorna el listado completo de usuarios registrados
-    
-    **Filtros combinables con paginación:**
-    1. **Solo por rol:** `?role=ADMIN` → Todos los admins (activos e inactivos)
-    2. **Solo por estado:** `?active=true` → Todos los usuarios activos (cualquier rol)
-    3. **Rol + Estado:** `?role=CURATOR&active=false` → Curadores inactivos
-    4. **Nombre + Rol:** `?name=Juan&role=LIDER_COMUNITARIO` → Líderes llamados Juan
-    5. **Nombre + Estado:** `?name=Maria&active=true` → Usuarios activas llamadas María
-    6. **Nombre + Rol + Estado:** `?name=Pedro&role=ADMIN&active=true` → Admins activos llamados Pedro
-    
-    **Roles válidos:**
-    - ADMIN, CIUDADANO, CURATOR, LIDER_COMUNITARIO
-    
-    **Parámetros de paginación:**
-    - **page:** Número de página (comienza en 0, por defecto: 0)
-    - **size:** Elementos por página (por defecto: 10, máximo: 100)
-    - **sortBy:** Campo para ordenar (por defecto: "name")
-    - **sortDirection:** Dirección del ordenamiento "asc" o "desc" (por defecto: "asc")
-    
-    **Campos disponibles para ordenar:**
-    - name, email, nationalId, createdAt, phone, active
-    
-    **Comportamiento especial:**
-    - **Con 'email' o 'nationalId':** Retorna objeto único sin paginación (búsqueda exacta)
-    - **Con cualquier otro filtro:** Retorna Page<UserDto> con paginación
-    """
-)
-@ApiResponses({
-    @ApiResponse(
-        responseCode = "200",
-        description = "Lista de usuarios que coinciden con los criterios",
-        content = @Content(
-            mediaType = "application/json",
-            examples = {
-                @ExampleObject(
-                    name = "adminActivos",
-                    description = "Ejemplo: Buscar todos los admins activos",
-                    value = """
-                    {
-                        "content": [
-                            {
-                                "id": 1,
-                                "name": "Juan Admin",
-                                "email": "juan@example.com",
-                                "nationalId": "1234567890",
-                                "phone": "+573001234567",
-                                "roles": ["ADMIN"],
-                                "active": true,
-                                "createdAt": "2024-01-15T10:30:00",
-                                "lastAction": "2024-11-07T14:20:00"
-                            }
-                        ],
-                        "totalPages": 2,
-                        "totalElements": 15,
-                        "size": 10,
-                        "number": 0
-                    }
-                    """
-                ),
-                @ExampleObject(
-                    name = "usuariosInactivos",
-                    description = "Ejemplo: Buscar todos los usuarios inactivos (cualquier rol)",
-                    value = """
-                    {
-                        "content": [
-                            {
-                                "id": 5,
-                                "name": "María García",
-                                "email": "maria@example.com",
-                                "nationalId": "9876543210",
-                                "phone": "+573009876543",
-                                "roles": ["LIDER_COMUNITARIO"],
-                                "active": false,
-                                "createdAt": "2024-02-20T09:15:00",
-                                "lastAction": "2024-10-30T11:45:00"
-                            }
-                        ],
-                        "totalPages": 1,
-                        "totalElements": 8,
-                        "size": 10,
-                        "number": 0
-                    }
-                    """
-                )
-            }
-        )
-    ),
-    @ApiResponse(
-        responseCode = "400",
-        description = "Rol no válido especificado en los filtros",
-        content = @Content(
-            examples = @ExampleObject(
-                value = """
-                {
-                    "status": 400,
-                    "error": "Bad Request",
-                    "message": "Rol no válido: SUPERUSER. Roles permitidos: ADMIN, CIUDADANO, CURATOR, LIDER_COMUNITARIO"
-                }
-                """
-            )
-        )
-    )
-})
-public ResponseEntity<?> searchUsers(
-    @Parameter(description = "Filtrar por nombre (búsqueda parcial)")
-    @RequestParam(required = false) String name,
-    
-    @Parameter(description = "Filtrar por correo electrónico (búsqueda exacta, sin paginación)")
-    @RequestParam(required = false) String email,
-    
-    @Parameter(description = "Filtrar por cédula (búsqueda exacta, sin paginación)")
-    @RequestParam(required = false) String nationalId,
-    
-    @Parameter(
-        description = "Filtrar por rol. Valores: ADMIN, CIUDADANO, CURATOR, LIDER_COMUNITARIO",
-        example = "ADMIN"
-    )
-    @RequestParam(required = false) String role,
-    
-    @Parameter(
-        description = "Filtrar por estado: true (activos) o false (inactivos)",
-        example = "true"
-    )
-    @RequestParam(required = false) Boolean active,
-    
-    @Parameter(description = "Número de página (comienza en 0)")
-    @RequestParam(defaultValue = "0") int page,
-    
-    @Parameter(description = "Cantidad de elementos por página (máximo 100)")
-    @RequestParam(defaultValue = "10") int size,
-    
-    @Parameter(description = "Campo por el cual ordenar")
-    @RequestParam(defaultValue = "name") String sortBy,
-    
-    @Parameter(description = "Dirección del ordenamiento: 'asc' o 'desc'")
-    @RequestParam(defaultValue = "asc") String sortDirection) {
+    @Operation(
+        summary = "Buscar y listar usuarios con filtros avanzados y paginación",
+        description = """
+        Permite buscar usuarios aplicando múltiples criterios de filtrado con soporte de paginación.
         
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    Long currentUserId = (Long) auth.getDetails();
+        **Respuesta mejorada:**
+        Ahora incluye estadísticas globales que respetan los filtros aplicados:
+        - **page:** Datos paginados de usuarios
+        - **statistics:** 
+          - total: Total de usuarios que cumplen con los filtros
+          - active: Total de usuarios activos que cumplen con los filtros
+          - inactive: Total de usuarios inactivos que cumplen con los filtros
+        
+        **Criterios de búsqueda disponibles:**
+        - **Por nombre:** Búsqueda parcial case-insensitive
+        - **Por email:** Búsqueda exacta del correo electrónico (SIN paginación)
+        - **Por cédula/ID nacional:** Búsqueda exacta (SIN paginación)
+        - **Por rol:** Filtra usuarios que tengan el rol especificado
+        - **Por estado:** Filtra usuarios activos (true) o inactivos (false)
+        - **Combinado:** rol + estado + nombre
+        
+        **Roles válidos:**
+        - ADMIN, CIUDADANO, CURATOR, LIDER_COMUNITARIO
+        
+        **Parámetros de paginación:**
+        - page, size, sortBy, sortDirection
+        """
+    )
+    @ApiResponses({
+        @ApiResponse(
+            responseCode = "200",
+            description = "Lista de usuarios con estadísticas",
+            content = @Content(
+                mediaType = "application/json",
+                examples = {
+                    @ExampleObject(
+                        name = "adminActivos",
+                        description = "Ejemplo: Buscar todos los admins (muestra activos e inactivos en stats)",
+                        value = """
+                        {
+                            "page": {
+                                "content": [
+                                    {
+                                        "id": 1,
+                                        "name": "Juan Admin",
+                                        "email": "juan@example.com",
+                                        "nationalId": "1234567890",
+                                        "phone": "+573001234567",
+                                        "roles": ["ADMIN"],
+                                        "active": true
+                                    }
+                                ],
+                                "totalElements": 8,
+                                "totalPages": 1,
+                                "size": 10,
+                                "number": 0
+                            },
+                            "statistics": {
+                                "total": 10,
+                                "active": 8,
+                                "inactive": 2
+                            }
+                        }
+                        """
+                    )
+                }
+            )
+        ),
+        @ApiResponse(
+            responseCode = "400",
+            description = "Rol no válido especificado en los filtros",
+            content = @Content
+        )
+    })
+    public ResponseEntity<?> searchUsers(
+        @Parameter(description = "Filtrar por nombre (búsqueda parcial)")
+        @RequestParam(required = false) String name,
+        
+        @Parameter(description = "Filtrar por correo electrónico (búsqueda exacta, sin paginación)")
+        @RequestParam(required = false) String email,
+        
+        @Parameter(description = "Filtrar por cédula (búsqueda exacta, sin paginación)")
+        @RequestParam(required = false) String nationalId,
+        
+        @Parameter(description = "Filtrar por rol")
+        @RequestParam(required = false) String role,
+        
+        @Parameter(description = "Filtrar por estado: true (activos) o false (inactivos)")
+        @RequestParam(required = false) Boolean active,
+        
+        @Parameter(description = "Número de página (comienza en 0)")
+        @RequestParam(defaultValue = "0") int page,
+        
+        @Parameter(description = "Cantidad de elementos por página")
+        @RequestParam(defaultValue = "10") int size,
+        
+        @Parameter(description = "Campo por el cual ordenar")
+        @RequestParam(defaultValue = "name") String sortBy,
+        
+        @Parameter(description = "Dirección del ordenamiento: 'asc' o 'desc'")
+        @RequestParam(defaultValue = "asc") String sortDirection) {
+            
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long currentUserId = (Long) auth.getDetails();
 
-    if (email != null) {
-        return ResponseEntity.ok(userService.findByEmail(email));
-    } 
-    
-    if (nationalId != null) {
-        return ResponseEntity.ok(userService.findByNationalId(nationalId));
+
+        if (email != null) {
+            return ResponseEntity.ok(userService.findByEmail(email));
+        } 
+        
+        if (nationalId != null) {
+            return ResponseEntity.ok(userService.findByNationalId(nationalId));
+        }
+        
+        PagedUserResponse response;
+        
+        if (name != null) {
+            response = userService.findByNameAndFilters(
+                name, role, active, currentUserId, 
+                page, size, sortBy, sortDirection
+            );
+        } else if (role != null || active != null) {
+            response = userService.findByFilters(
+                role, active, currentUserId, 
+                page, size, sortBy, sortDirection
+            );
+        } else {
+            response = userService.findAllExceptCurrent(
+                currentUserId, page, size, sortBy, sortDirection
+            );
+        }
+        
+        return ResponseEntity.ok(response);
     }
-    
-    if (name != null) {
-        return ResponseEntity.ok(
-            userService.findByNameAndFilters(name, role, active, currentUserId, 
-                                             page, size, sortBy, sortDirection)
-        );
-    }
-    
-    if (role != null || active != null) {
-        return ResponseEntity.ok(
-            userService.findByFilters(role, active, currentUserId, 
-                                      page, size, sortBy, sortDirection)
-        );
-    }
-    
-    return ResponseEntity.ok(
-        userService.findAllExceptCurrent(currentUserId, page, size, sortBy, sortDirection)
-    );
-}
 
     @PutMapping("/{id}")
     @Operation(
@@ -1091,15 +1049,15 @@ public ResponseEntity<?> validateEmailOrNationalId(
         List<UserDto> users;
         
         if (name != null) {
-            Page<UserDto> pagedUsers = userService.findByNameAndFilters(
+            PagedUserResponse response = userService.findByNameAndFilters(
                 name, role, active, currentUserId, page, size, sortBy, sortDirection
             );
-            users = pagedUsers.getContent();
+            users = response.page().getContent();
         } else if (role != null || active != null) {
-            Page<UserDto> pagedUsers = userService.findByFilters(
+            PagedUserResponse response = userService.findByFilters(
                 role, active, currentUserId, page, size, sortBy, sortDirection
             );
-            users = pagedUsers.getContent();
+            users = response.page().getContent();
         } else {
             users = userService.findAll();
         }

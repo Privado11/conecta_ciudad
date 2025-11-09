@@ -29,10 +29,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.unimagdalena.conectaCiudad.Dto.action.ActionDto;
 import com.unimagdalena.conectaCiudad.Dto.action.ActionSaveDto;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import com.unimagdalena.conectaCiudad.Dto.user.PagedUserResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserImportError;
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
+import com.unimagdalena.conectaCiudad.Dto.user.UserStatistics;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.entities.Access;
@@ -68,6 +70,9 @@ public class UserServiceImpl implements UserService {
     private static final String DEFAULT_SORT_FIELD = "name";
     private static final String DEFAULT_ROLE = "CIUDADANO";
     private static final Set<String> ALLOWED_ROLE_NAMES = Set.of("ADMIN", "CIUDADANO", "CURATOR", "LIDER_COMUNITARIO");
+    private static final String EMAIL_REGEX = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+    private static final String PHONE_REGEX = "^(\\+?\\d{10,15})$";
+    private static final int MIN_PASSWORD_LENGTH = 6;
     
     private final UserRepository userRepository;
     private final UserMapper userMapper;
@@ -249,61 +254,99 @@ public class UserServiceImpl implements UserService {
         
         return userMapper.toDto(userRepository.save(user));
     }
-
     @Override
-    public Page<UserDto> findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    public PagedUserResponse findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection) {
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
         
         Page<User> userPage = (currentUserId != null) 
             ? userRepository.findAllExceptUser(currentUserId, pageable)
             : userRepository.findAll(pageable);
         
-        return userPage.map(this::enrichWithLastAction);
+        Page<UserDto> users = userPage.map(this::enrichWithLastAction);
+    
+        long total = currentUserId != null 
+            ? userRepository.countExcludingUser(currentUserId) 
+            : userRepository.count();
+        
+        long active = currentUserId != null
+            ? userRepository.countByActiveExcludingUser(true, currentUserId)
+            : userRepository.countByActive(true);
+        
+        long inactive = total - active;
+        
+        UserStatistics stats = new UserStatistics(total, active, inactive);
+        
+        return new PagedUserResponse(users, stats);
     }
 
     @Override
-    public Page<UserDto> findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    public PagedUserResponse findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection) {
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
-        
+    
         Page<User> userPage = (currentUserId != null)
-            ? userRepository.findByNameContainingIgnoreCaseAndIdNot(name, currentUserId, pageable)
-            : userRepository.findByNameContainingIgnoreCase(name, pageable);
-        
-        return userPage.map(this::enrichWithLastAction);
+        ? userRepository.findByNameContainingIgnoreCaseAndIdNot(name, currentUserId, pageable)
+        : userRepository.findByNameContainingIgnoreCase(name, pageable);
+    
+        Page<UserDto> users = userPage.map(this::enrichWithLastAction);
+
+        long total = userRepository.countByNameAndCurrentUser(name, currentUserId);
+        long active = userRepository.countByNameAndActiveAndCurrentUser(name, true, currentUserId);
+        long inactive = userRepository.countByNameAndActiveAndCurrentUser(name, false, currentUserId);
+    
+        UserStatistics stats = new UserStatistics(total, active, inactive);
+    
+        return new PagedUserResponse(users, stats);
     }
 
     @Override
-    public Page<UserDto> findByFilters(String roleName, Boolean active, Long currentUserId,
-                                        int page, int size, String sortBy, String sortDirection) {
+    public PagedUserResponse findByFilters(String roleName, Boolean active, Long currentUserId,
+                                    int page, int size, String sortBy, String sortDirection) {
         String normalizedRole = normalizeRoleForFilter(roleName);
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
-        
+    
         Page<User> userPage = userRepository.findByRoleAndActiveStatus(
-            normalizedRole, 
-            active, 
-            currentUserId, 
-            pageable
+        normalizedRole, 
+        active, 
+        currentUserId, 
+        pageable
         );
-        
-        return userPage.map(this::enrichWithLastAction);
+    
+        Page<UserDto> users = userPage.map(this::enrichWithLastAction);
+
+        long total = userRepository.countByRoleAndCurrentUser(normalizedRole, currentUserId);
+        long totalActive = userRepository.countByRoleAndActiveAndCurrentUser(normalizedRole, true, currentUserId);
+        long totalInactive = userRepository.countByRoleAndActiveAndCurrentUser(normalizedRole, false, currentUserId);
+    
+        UserStatistics stats = new UserStatistics(total, totalActive, totalInactive);
+    
+        return new PagedUserResponse(users, stats);
     }
 
     @Override
-    public Page<UserDto> findByNameAndFilters(String name, String roleName, Boolean active, 
-                                               Long currentUserId, int page, int size, 
-                                               String sortBy, String sortDirection) {
+    public PagedUserResponse findByNameAndFilters(String name, String roleName, Boolean active, 
+                                           Long currentUserId, int page, int size, 
+                                           String sortBy, String sortDirection) {
         String normalizedRole = normalizeRoleForFilter(roleName);
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
-        
+    
         Page<User> userPage = userRepository.findByNameAndRoleAndActiveStatus(
-            name,
-            normalizedRole,
-            active,
-            currentUserId,
-            pageable
+        name,
+        normalizedRole,
+        active,
+        currentUserId,
+        pageable
         );
-        
-        return userPage.map(this::enrichWithLastAction);
+    
+        Page<UserDto> users = userPage.map(this::enrichWithLastAction);
+
+   
+        long total = userRepository.countByNameAndRoleAndCurrentUser(name, normalizedRole, currentUserId);
+        long totalActive = userRepository.countByNameAndRoleAndActiveAndCurrentUser(name, normalizedRole, true, currentUserId);
+        long totalInactive = userRepository.countByNameAndRoleAndActiveAndCurrentUser(name, normalizedRole, false, currentUserId);
+    
+        UserStatistics stats = new UserStatistics(total, totalActive, totalInactive);
+    
+        return new PagedUserResponse(users, stats);
     }
 
     @Override
@@ -324,70 +367,108 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-@Transactional
-public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
+    @Transactional
+    public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
     log.info("Iniciando importación masiva de {} usuarios", users.size());
     
     List<UserDto> importedUsers = new ArrayList<>();
     List<UserImportError> errors = new ArrayList<>();
     
-    // Pre-validación: verificar duplicados en el CSV
     Map<String, Integer> emailMap = new HashMap<>();
     Map<String, Integer> nationalIdMap = new HashMap<>();
     Set<Integer> rowsWithErrors = new HashSet<>();
     
     for (int i = 0; i < users.size(); i++) {
         UserSaveDto user = users.get(i);
-        int rowNumber = i + 2; // +2 porque empieza en 1 y la primera es header
+        int rowNumber = i + 2; 
         String role = (user.roles() != null && !user.roles().isEmpty()) 
             ? user.roles().get(0) 
             : DEFAULT_ROLE;
         
-        // Verificar duplicados dentro del CSV
-        if (emailMap.containsKey(user.email())) {
-            errors.add(new UserImportError(
-                rowNumber, 
-                user.email(), 
-                user.nationalId(),
-                role,
-                "Email duplicado en el CSV (también en fila " + emailMap.get(user.email()) + ")"
-            ));
-            rowsWithErrors.add(rowNumber);
-            continue;
-        }
         
-        if (nationalIdMap.containsKey(user.nationalId())) {
-            errors.add(new UserImportError(
-                rowNumber, 
-                user.email(), 
-                user.nationalId(),
-                role,
-                "Cédula duplicada en el CSV (también en fila " + nationalIdMap.get(user.nationalId()) + ")"
-            ));
-            rowsWithErrors.add(rowNumber);
-            continue;
-        }
+            if (emailMap.containsKey(user.email())) {
+                errors.add(new UserImportError(
+                    rowNumber, user.email(), user.nationalId(), role,
+                    "Email duplicado en el CSV (también en fila " + emailMap.get(user.email()) + ")"
+                ));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
         
-        // Validar formato básico
-        if (user.email() == null || user.email().isBlank()) {
-            errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                "Email es obligatorio"));
-            rowsWithErrors.add(rowNumber);
-            continue;
-        }
-        
-        if (user.nationalId() == null || user.nationalId().isBlank()) {
-            errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                "Cédula es obligatoria"));
-            rowsWithErrors.add(rowNumber);
-            continue;
-        }
-        
-        emailMap.put(user.email(), rowNumber);
-        nationalIdMap.put(user.nationalId(), rowNumber);
+            if (nationalIdMap.containsKey(user.nationalId())) {
+                errors.add(new UserImportError(
+                    rowNumber, user.email(), user.nationalId(), role,
+                    "Cédula duplicada en el CSV (también en fila " + nationalIdMap.get(user.nationalId()) + ")"
+                ));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            // === VALIDACIÓN 2: Nombre ===
+            if (user.name() == null || user.name().isBlank()) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "El nombre es obligatorio"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            // === VALIDACIÓN 3: Email ===
+            if (user.email() == null || user.email().isBlank()) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "El email es obligatorio"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            if (!user.email().matches(EMAIL_REGEX)) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "Formato de email inválido. Debe tener formato usuario@dominio.com"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            // === VALIDACIÓN 4: Cédula ===
+            if (user.nationalId() == null || user.nationalId().isBlank()) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "La cédula es obligatoria"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            // === VALIDACIÓN 5: Teléfono ===
+            if (user.phone() == null || user.phone().isBlank()) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "El teléfono es obligatorio"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            if (!user.phone().matches(PHONE_REGEX)) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "Formato de teléfono inválido. Debe ser solo números o formato internacional con + (ej: +573001234567 o 3001234567)"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            // === VALIDACIÓN 6: Contraseña ===
+            if (user.password() == null || user.password().isBlank()) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "La contraseña es obligatoria"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+            
+            if (user.password().length() < MIN_PASSWORD_LENGTH) {
+                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                    "La contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres"));
+                rowsWithErrors.add(rowNumber);
+                continue;
+            }
+
+            emailMap.put(user.email(), rowNumber);
+            nationalIdMap.put(user.nationalId(), rowNumber);
     }
     
-    // Verificar duplicados en BD en una sola consulta
     Set<String> emails = users.stream()
         .map(UserSaveDto::email)
         .filter(email -> email != null && !email.isBlank())
@@ -409,7 +490,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
     Map<String, User> existingNationalIdMap = existingUsers.stream()
         .collect(Collectors.toMap(User::getNationalId, u -> u, (u1, u2) -> u1));
     
-    // Obtener roles existentes una sola vez
     Map<String, Role> roleMap = new HashMap<>();
     for (String roleName : ALLOWED_ROLE_NAMES) {
         Role role = roleRepository.findByNameContainingIgnoreCase(roleName);
@@ -423,14 +503,12 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
         throw new BadRequestException("El rol por defecto 'CIUDADANO' no existe en la base de datos");
     }
     
-    // Procesar cada usuario y guardar los que sean válidos
     List<User> usersToSave = new ArrayList<>();
     
     for (int i = 0; i < users.size(); i++) {
         UserSaveDto userDto = users.get(i);
         int rowNumber = i + 2;
         
-        // Saltar si ya tiene error
         if (rowsWithErrors.contains(rowNumber)) {
             continue;
         }
@@ -440,7 +518,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
                 ? userDto.roles().get(0).trim().toUpperCase() 
                 : DEFAULT_ROLE;
             
-            // Verificar si ya existe en BD
             if (existingEmailMap.containsKey(userDto.email())) {
                 errors.add(new UserImportError(
                     rowNumber,
@@ -463,7 +540,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
                 continue;
             }
             
-            // Validar rol
             if (!ALLOWED_ROLE_NAMES.contains(roleName)) {
                 errors.add(new UserImportError(
                     rowNumber,
@@ -487,7 +563,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
                 continue;
             }
             
-            // Crear usuario
             User user = userMapper.toUserSaveDtoToEntity(userDto);
             user.setPassword(passwordEncoder.encode(userDto.password()));
             user.setActive(true);
@@ -510,7 +585,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
         }
     }
     
-    // Guardar todos los usuarios válidos en lote
     int successCount = 0;
     if (!usersToSave.isEmpty()) {
         try {
@@ -531,7 +605,6 @@ public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
     
     int failCount = errors.size();
     
-    // Log de acción única
     logActionForAdmin(
         UserActionType.USER_BULK_IMPORT,
         String.format("Importación masiva completada: %d exitosos, %d fallidos de %d totales", 
@@ -557,10 +630,8 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
     PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
     
-    // Header
     writer.println("name,email,nationalId,phone,role,active,createdAt");
     
-    // Datos
     for (UserDto user : users) {
         String role = (user.roles() != null && !user.roles().isEmpty()) 
             ? user.roles().get(0) 
@@ -590,26 +661,24 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
     );
     
     return outputStream.toByteArray();
-}
-
-@Override
-public byte[] exportAllUsersToCSV() throws IOException {
-    List<UserDto> allUsers = findAll();
-    return exportUsersToCSV(allUsers);
-}
-
-private String escapeCSV(String value) {
-    if (value == null) {
-        return "";
     }
-    
-    // Si contiene coma, comillas o salto de línea, envolver en comillas
-    if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
-        return "\"" + value.replace("\"", "\"\"") + "\"";
+
+    public byte[] exportAllUsersToCSV() throws IOException {
+        List<UserDto> allUsers = findAll();
+        return exportUsersToCSV(allUsers);
     }
+
+    private String escapeCSV(String value) {
+        if (value == null) {
+            return "";
+        }
     
-    return value;
-}
+        if (value.contains(",") || value.contains("\"") || value.contains("\n")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+    
+        return value;
+    }
 
     private User findUserById(Long userId) {
         return userRepository.findById(userId)
@@ -814,7 +883,7 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
                 try {
                     UserSaveDto userDto = parseUserFromCSVRow(record, i + 1);
                     users.add(userDto);
-                } catch (Exception e) {
+                } catch (BadRequestException e) {
                     log.warn("Error parseando fila {}: {}", i + 1, e.getMessage());
                 }
             }
@@ -825,6 +894,7 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
         
         return users;
     }
+    
 
     private boolean detectHeaderRow(String[] row) {
         if (row == null || row.length < 5) {
@@ -867,22 +937,6 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
         String phone = cleanCSVField(record[3]);
         String password = cleanCSVField(record[4]);
         String role = record.length > 5 ? cleanCSVField(record[5]).toUpperCase() : DEFAULT_ROLE;
-        
-        if (name == null || name.isBlank()) {
-            throw new BadRequestException(String.format("Fila %d: el nombre es obligatorio", rowNumber));
-        }
-        
-        if (email == null || email.isBlank()) {
-            throw new BadRequestException(String.format("Fila %d: el email es obligatorio", rowNumber));
-        }
-        
-        if (nationalId == null || nationalId.isBlank()) {
-            throw new BadRequestException(String.format("Fila %d: la cédula es obligatoria", rowNumber));
-        }
-        
-        if (password == null || password.isBlank()) {
-            throw new BadRequestException(String.format("Fila %d: la contraseña es obligatoria", rowNumber));
-        }
         
         if (role.isBlank()) {
             role = DEFAULT_ROLE;
