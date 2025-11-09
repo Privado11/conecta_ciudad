@@ -197,7 +197,7 @@ public class GlobalExceptionHandler {
         log.error("Malformed JSON request: {}", ex.getMessage());
         
         ErrorResponse errorResponse = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
+                .timestamp(LocalDateTime.now()) 
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
                 .message("Malformed JSON request. Please check your request body.")

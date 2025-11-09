@@ -1,0 +1,15 @@
+az acr login --name conectaciudadacr
+
+
+docker build -t conecta-ciudad:latest .
+
+
+docker tag conecta-ciudad:latest conectaciudadacr.azurecr.io/conecta-ciudad:latest
+
+
+docker push conectaciudadacr.azurecr.io/conecta-ciudad:latest
+
+
+az webapp restart \
+  --name conecta-ciudad-api \
+  --resource-group conecta-ciudad-rg

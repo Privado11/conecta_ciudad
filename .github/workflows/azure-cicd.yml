@@ -1,0 +1,32 @@
+name: CI/CD Java to Azure App Service (deploy branch)
+
+on:
+  push:
+    branches:
+      - deploy  
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build application with Maven
+        run: mvn clean package -DskipTests
+
+      - name: Log in to Azure Container Registry
+        run: echo ${{ secrets.REGISTRY_PASSWORD }} | docker login ${{ secrets.REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest .
+
+      - name: Push Docker image to ACR
+        run: docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest
