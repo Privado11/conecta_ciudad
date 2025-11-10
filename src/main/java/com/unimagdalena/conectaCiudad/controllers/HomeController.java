@@ -19,7 +19,7 @@ public class HomeController {
     public ResponseEntity<Map<String, String>> health() {
         Map<String, String> response = new HashMap<>();
         response.put("status", "OK");
-        response.put("message", "¡Prueba de despliegue automático!");
+        response.put("message", "¡Despliegue automático exitoso!");
         response.put("version", "1.0.0");
         response.put("timestamp", java.time.LocalDateTime.now().toString());
         return ResponseEntity.ok(response);
