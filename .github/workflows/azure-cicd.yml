@@ -3,10 +3,10 @@ name: CI/CD Java to Azure App Service (deploy branch)
 on:
   push:
     branches:
-      - deploy  
+      - deploy
 
 jobs:
-  build-and-deploy:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,8 +16,8 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Build application with Maven
         run: mvn clean package -DskipTests
@@ -26,14 +26,11 @@ jobs:
         run: echo ${{ secrets.REGISTRY_PASSWORD }} | docker login ${{ secrets.REGISTRY_LOGIN_SERVER }} -u ${{ secrets.REGISTRY_USERNAME }} --password-stdin
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest .
+        run: |
+          docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:${{ github.sha }} .
+          docker tag ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:${{ github.sha }} ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest
 
-      - name: Push Docker image to ACR
-        run: docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest
-
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: 'conecta-ciudad-api'
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          images: ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest
+      - name: Push Docker images to ACR
+        run: |
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:${{ github.sha }}
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/conecta-ciudad:latest
