@@ -26,12 +26,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
-import com.unimagdalena.conectaCiudad.Dto.user.PagedUserResponse;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -225,7 +225,7 @@ public class UserController {
             return ResponseEntity.ok(userService.findByNationalId(nationalId));
         }
         
-        PagedUserResponse response;
+        PagedResponse<UserDto> response;
         
         if (name != null) {
             response = userService.findByNameAndFilters(
@@ -1049,12 +1049,12 @@ public ResponseEntity<?> validateEmailOrNationalId(
         List<UserDto> users;
         
         if (name != null) {
-            PagedUserResponse response = userService.findByNameAndFilters(
+            PagedResponse<UserDto> response = userService.findByNameAndFilters(
                 name, role, active, currentUserId, page, size, sortBy, sortDirection
             );
             users = response.page().getContent();
         } else if (role != null || active != null) {
-            PagedUserResponse response = userService.findByFilters(
+            PagedResponse<UserDto> response = userService.findByFilters(
                 role, active, currentUserId, page, size, sortBy, sortDirection
             );
             users = response.page().getContent();

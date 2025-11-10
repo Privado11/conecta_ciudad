@@ -3,7 +3,6 @@ package com.unimagdalena.conectaCiudad.services.user;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -12,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
@@ -25,39 +23,36 @@ import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
-import com.unimagdalena.conectaCiudad.Dto.action.ActionDto;
-import com.unimagdalena.conectaCiudad.Dto.action.ActionSaveDto;
+import com.opencsv.CSVReader;
+import com.opencsv.exceptions.CsvException;
+import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
+import com.unimagdalena.conectaCiudad.Dto.page.Statistics;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
-import com.unimagdalena.conectaCiudad.Dto.user.PagedUserResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserImportError;
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
-import com.unimagdalena.conectaCiudad.Dto.user.UserStatistics;
-import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
-import com.unimagdalena.conectaCiudad.enums.UserActionType;
-import com.unimagdalena.conectaCiudad.entities.Access;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Role;
+import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.enums.ActionResult;
+import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
+import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
+import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
-import com.unimagdalena.conectaCiudad.services.access.AccessService;
 import com.unimagdalena.conectaCiudad.services.action.ActionService;
+import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
 
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
-import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
-
-import org.springframework.web.multipart.MultipartFile;
-import com.opencsv.CSVReader;
-import com.opencsv.exceptions.CsvException;
 import java.io.InputStreamReader;
 
 @Slf4j
@@ -65,7 +60,6 @@ import java.io.InputStreamReader;
 @AllArgsConstructor
 public class UserServiceImpl implements UserService {
     
-
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int MIN_PAGE_NUMBER = 0;
@@ -81,9 +75,8 @@ public class UserServiceImpl implements UserService {
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final ProjectRepository projectRepository;
-    private final AccessService accessService; 
     private final ActionService actionService;
-    private final HttpServletRequest request;
+    private final AuditHelper auditHelper;
 
     @Override
     public UserDto findByEmail(String email) {
@@ -136,177 +129,343 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserDto updateUser(Long id, UserSaveDto user) {
-        UserDto userDto = userRepository.findById(id).map(existingUser -> {
+        try {
+            User existingUser = findUserById(id);
+            
+            String oldName = existingUser.getName();
+            String oldEmail = existingUser.getEmail();
+            String oldRole = existingUser.getRoles().isEmpty() ? "ninguno" : existingUser.getRoles().get(0).getName();
+            
             existingUser.setName(user.name());
             existingUser.setEmail(user.email());
             existingUser.setNationalId(user.nationalId());
             existingUser.setPhone(user.phone());
-            return userRepository.save(existingUser);
-        }).map(userMapper::toDto)
-        .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
-        
-        logAction(UserActionType.USER_UPDATED, "Usuario actualizado " + userDto.id(), userDto.id());
-        return userDto;
+
+            if (user.active() != null) {
+                existingUser.setActive(user.active());
+            }
+
+            String newRole = oldRole;
+            if (user.roles() != null && !user.roles().isEmpty()) {
+                String normalizedRole = validateAndNormalizeRole(user.roles().get(0));
+                Role role = findRoleByName(normalizedRole);
+                existingUser.getRoles().clear();
+                existingUser.getRoles().add(role);
+                newRole = role.getName();
+            }
+            
+            User savedUser = userRepository.save(existingUser);
+            UserDto userDto = userMapper.toDto(savedUser);
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("oldName", oldName);
+            metadata.put("newName", savedUser.getName());
+            metadata.put("oldEmail", oldEmail);
+            metadata.put("newEmail", savedUser.getEmail());
+            metadata.put("oldRole", oldRole);
+            metadata.put("newRole", newRole);
+            
+            auditHelper.logComplete(
+                UserActionType.USER_UPDATED.name(),
+                "Usuario '" + oldName + "' actualizado",
+                EntityType.USER,
+                id,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userDto;
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_UPDATED.name(),
+                "Error al actualizar usuario " + id,
+                e.getMessage()
+            );
+            throw e;
+        }
     }
 
     @Override
-@Transactional
-public void deleteUser(Long id) {
-    log.info("Iniciando eliminación del usuario con ID: {}", id);
-    
-   
-    User user = userRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
-    
-    
-    long activeProjects = projectRepository.countByCreatorIdAndStatus(
-        id, 
-        ProjectStatus.PUBLICADO
-    );
-    
-    if (activeProjects > 0) {
-        throw new BadRequestException(
-            "No se puede eliminar el usuario porque tiene " + activeProjects + 
-            " proyecto(s) activo(s). Finalice o reasigne los proyectos primero."
-        );
+    @Transactional
+    public void deleteUser(Long id) {
+        try {
+            log.info("Iniciando eliminación del usuario con ID: {}", id);
+            
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+            
+            long activeProjects = projectRepository.countByCreatorIdAndStatus(
+                id, 
+                ProjectStatus.PUBLICADO
+            );
+            
+            if (activeProjects > 0) {
+                throw new BadRequestException(
+                    "No se puede eliminar el usuario porque tiene " + activeProjects + 
+                    " proyecto(s) activo(s). Finalice o reasigne los proyectos primero."
+                );
+            }
+            
+            List<Project> inactiveProjects = projectRepository
+                .findByCreatorIdAndStatusNot(id, ProjectStatus.PUBLICADO);
+            
+            if (!inactiveProjects.isEmpty()) {
+                User systemUser = userRepository.findById(1L)
+                    .orElseThrow(() -> new IllegalStateException(
+                        "Usuario sistema no encontrado. Cree un usuario con ID=1 para reasignaciones."
+                    ));
+                
+                log.info("Reasignando {} proyectos inactivos al usuario sistema", 
+                         inactiveProjects.size());
+                
+                inactiveProjects.forEach(project -> project.setCreator(systemUser));
+                projectRepository.saveAll(inactiveProjects);
+            }
+            
+            String userName = user.getName();
+            String userEmail = user.getEmail();
+            
+            userRepository.delete(user);
+            
+            log.info("Usuario {} ({}) eliminado exitosamente", userName, userEmail);
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", userName);
+            metadata.put("userEmail", userEmail);
+            metadata.put("inactiveProjectsReassigned", inactiveProjects.size());
+            
+            auditHelper.logComplete(
+                UserActionType.USER_DELETED.name(),
+                "Usuario '" + userName + "' (" + userEmail + ") eliminado",
+                EntityType.USER,
+                id,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_DELETED.name(),
+                "Error al eliminar usuario " + id,
+                e.getMessage()
+            );
+            throw e;
+        }
     }
-    
-    
-    List<Project> inactiveProjects = projectRepository
-        .findByCreatorIdAndStatusNot(id, ProjectStatus.PUBLICADO);
-    
-    if (!inactiveProjects.isEmpty()) {
-        
-        User systemUser = userRepository.findById(1L)
-            .orElseThrow(() -> new IllegalStateException(
-                "Usuario sistema no encontrado. Cree un usuario con ID=1 para reasignaciones."
-            ));
-        
-        log.info("Reasignando {} proyectos inactivos al usuario sistema", 
-                 inactiveProjects.size());
-        
-        inactiveProjects.forEach(project -> project.setCreator(systemUser));
-        projectRepository.saveAll(inactiveProjects);
-    }
-    
-    
-    String userName = user.getName();
-    String userEmail = user.getEmail();
-    
-    
-    userRepository.delete(user);
-    
-    log.info("Usuario {} ({}) eliminado exitosamente", userName, userEmail);
-    
-    try {
-        logActionForAdmin(
-            UserActionType.USER_DELETED, 
-            String.format("Usuario eliminado: %s (%s)", userName, userEmail)
-        );
-    } catch (Exception e) {
-        log.warn("No se pudo registrar la acción de eliminación: {}", e.getMessage());
-    }
-}
 
     @Override
     public UserDto addRole(Long userId, String roleName) {
-    User user = findUserById(userId);
-    String normalizedRole = validateAndNormalizeRole(roleName);
-    Role role = findRoleByName(normalizedRole);
-    
-    String oldRole = user.getRoles().isEmpty() ? "ninguno" : user.getRoles().iterator().next().getName();
-    
-    user.getRoles().clear();
-    user.getRoles().add(role);
-    
-    user = userRepository.save(user);
-    
-    UserDto userDto = userMapper.toDto(user);
-    logAction(UserActionType.USER_ROLE_ADDED, 
-             String.format("Rol del usuario %d cambiado de %s a %s", 
-                         userDto.id(), oldRole, role.getName()), 
-             userId);
-    return userDto;
-}
+        try {
+            User user = findUserById(userId);
+            String normalizedRole = validateAndNormalizeRole(roleName);
+            Role role = findRoleByName(normalizedRole);
+            
+            String oldRole = user.getRoles().isEmpty() ? "ninguno" : user.getRoles().iterator().next().getName();
+            
+            user.getRoles().clear();
+            user.getRoles().add(role);
+            
+            user = userRepository.save(user);
+            UserDto userDto = userMapper.toDto(user);
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", user.getName());
+            metadata.put("oldRole", oldRole);
+            metadata.put("newRole", role.getName());
+            
+            auditHelper.logComplete(
+                UserActionType.USER_ROLE_ADDED.name(),
+                String.format("Rol del usuario '%s' cambiado de %s a %s", 
+                            user.getName(), oldRole, role.getName()),
+                EntityType.USER,
+                userId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userDto;
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_ROLE_ADDED.name(),
+                "Error al agregar rol al usuario " + userId,
+                e.getMessage()
+            );
+            throw e;
+        }
+    }
 
     @Override
     public UserDto removeRole(Long userId, String roleName) {
-        User user = findUserById(userId);
-        String normalizedRole = validateAndNormalizeRole(roleName);
-        
-        List<Role> roles = new ArrayList<>(user.getRoles());
-        roles.removeIf(r -> r.getName().equalsIgnoreCase(normalizedRole));
-        
-        if (roles.isEmpty()) {
-            Role defaultRole = findRoleByName(DEFAULT_ROLE);
-            roles.add(defaultRole);
+        try {
+            User user = findUserById(userId);
+            String normalizedRole = validateAndNormalizeRole(roleName);
+            
+            List<Role> roles = new ArrayList<>(user.getRoles());
+            roles.removeIf(r -> r.getName().equalsIgnoreCase(normalizedRole));
+            
+            if (roles.isEmpty()) {
+                Role defaultRole = findRoleByName(DEFAULT_ROLE);
+                roles.add(defaultRole);
+            }
+            
+            user.setRoles(roles);
+            User savedUser = userRepository.save(user);
+            UserDto userDto = userMapper.toDto(savedUser);
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", user.getName());
+            metadata.put("removedRole", normalizedRole);
+            metadata.put("assignedDefaultRole", roles.size() == 1 && roles.get(0).getName().equals(DEFAULT_ROLE));
+            
+            auditHelper.logComplete(
+                UserActionType.USER_ROLE_REMOVED.name(),
+                "Rol '" + normalizedRole + "' removido del usuario '" + user.getName() + "'",
+                EntityType.USER,
+                userId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userDto;
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_ROLE_REMOVED.name(),
+                "Error al remover rol del usuario " + userId,
+                e.getMessage()
+            );
+            throw e;
         }
-        
-        user.setRoles(roles);
-        UserDto userDto = userMapper.toDto(userRepository.save(user));
-        logAction(UserActionType.USER_ROLE_REMOVED, "Rol " + roleName + " removido del usuario " + userDto.id(), userId);
-        return userDto;
     }
 
     @Override
     public UserDto saveUser(UserSaveDto user) {
-        validateRolesProvided(user.roles());
-        validateUniqueFieldsForNewUser(user.email(), user.nationalId());
-        
-        User userToSave = createUserFromDto(user);
-        List<Role> roles = validateAndFetchRoles(user.roles());
-        
-        userToSave.setActive(true);
-        userToSave.setRoles(roles);
-        
-        UserDto userDto = userMapper.toDto(userRepository.save(userToSave));
-        
-        String roleNames = roles.stream().map(Role::getName).collect(Collectors.joining(", "));
-        logAction(UserActionType.USER_CREATED, "Usuario " + userDto.id() + " creado con rol: " + roleNames, userDto.id());
-        
-        return userDto;
+        try {
+            validateRolesProvided(user.roles());
+            validateUniqueFieldsForNewUser(user.email(), user.nationalId());
+            
+            User userToSave = createUserFromDto(user);
+            List<Role> roles = validateAndFetchRoles(user.roles());
+            
+            userToSave.setActive(true);
+            userToSave.setRoles(roles);
+            
+            User savedUser = userRepository.save(userToSave);
+            UserDto userDto = userMapper.toDto(savedUser);
+            
+            String roleNames = roles.stream().map(Role::getName).collect(Collectors.joining(", "));
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", savedUser.getName());
+            metadata.put("userEmail", savedUser.getEmail());
+            metadata.put("roles", roleNames);
+            
+            auditHelper.logComplete(
+                UserActionType.USER_CREATED.name(),
+                "Usuario '" + savedUser.getName() + "' creado con rol: " + roleNames,
+                EntityType.USER,
+                savedUser.getId(),
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userDto;
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_CREATED.name(),
+                "Error al crear usuario",
+                e.getMessage()
+            );
+            throw e;
+        }
     }
 
     @Override
     public UserDto saveUserDefault(UserSaveDto user) {
-        validateOnlyCitizenRole(user.roles());
-        validateUniqueFieldsForNewUser(user.email(), user.nationalId());
-        
-        User userToSave = createUserFromDto(user);
-        userToSave.setActive(true);
-        
-        Role defaultRole = findRoleByName(DEFAULT_ROLE);
-        userToSave.setRoles(List.of(defaultRole));
-        
-        UserDto userDto = userMapper.toDto(userRepository.save(userToSave));
-        
-        logAction(
-            UserActionType.USER_CREATED,
-            "Usuario " + userDto.id() + " creado con rol: " + defaultRole.getName(),
-            userDto.id()
-        );
-        
-        return userDto;
+        try {
+            validateOnlyCitizenRole(user.roles());
+            validateUniqueFieldsForNewUser(user.email(), user.nationalId());
+            
+            User userToSave = createUserFromDto(user);
+            userToSave.setActive(true);
+            
+            Role defaultRole = findRoleByName(DEFAULT_ROLE);
+            userToSave.setRoles(List.of(defaultRole));
+            
+            User savedUser = userRepository.save(userToSave);
+            UserDto userDto = userMapper.toDto(savedUser);
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", savedUser.getName());
+            metadata.put("userEmail", savedUser.getEmail());
+            metadata.put("role", defaultRole.getName());
+            
+            auditHelper.logComplete(
+                UserActionType.USER_CREATED.name(),
+                "Usuario '" + savedUser.getName() + "' creado con rol por defecto: " + defaultRole.getName(),
+                EntityType.USER,
+                savedUser.getId(),
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userDto;
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_CREATED.name(),
+                "Error al crear usuario con rol por defecto",
+                e.getMessage()
+            );
+            throw e;
+        }
     }
 
     @Override
     public UserDto toggleUserStatus(Long userId) {
-        User user = findUserById(userId);
-        
-        boolean newStatus = !user.getActive();
-        user.setActive(newStatus);
-        
-        log.info("Estado de usuario {} cambiado a {}", user.getEmail(), newStatus ? "activo" : "inactivo");
-        
-        logActionForAdmin(
-            newStatus ? UserActionType.USER_ACTIVATED : UserActionType.USER_DEACTIVATED,
-            "El estado del usuario " + user.getEmail() + " ha sido cambiado a " + (newStatus ? "activo" : "inactivo")
-        );
-        
-        return userMapper.toDto(userRepository.save(user));
+        try {
+            User user = findUserById(userId);
+            
+            boolean oldStatus = user.getActive();
+            boolean newStatus = !oldStatus;
+            user.setActive(newStatus);
+            
+            User savedUser = userRepository.save(user);
+            
+            log.info("Estado de usuario {} cambiado a {}", user.getEmail(), newStatus ? "activo" : "inactivo");
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userName", user.getName());
+            metadata.put("userEmail", user.getEmail());
+            metadata.put("oldStatus", oldStatus);
+            metadata.put("newStatus", newStatus);
+            
+            auditHelper.logComplete(
+                newStatus ? UserActionType.USER_ACTIVATED.name() : UserActionType.USER_DEACTIVATED.name(),
+                "Usuario '" + user.getEmail() + "' " + (newStatus ? "activado" : "desactivado"),
+                EntityType.USER,
+                userId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return userMapper.toDto(savedUser);
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_ACTIVATED.name(),
+                "Error al cambiar estado del usuario " + userId,
+                e.getMessage()
+            );
+            throw e;
+        }
     }
+
     @Override
-    public PagedUserResponse findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    public PagedResponse<UserDto> findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection) {
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
         
         Page<User> userPage = (currentUserId != null) 
@@ -325,13 +484,19 @@ public void deleteUser(Long id) {
         
         long inactive = total - active;
         
-        UserStatistics stats = new UserStatistics(total, active, inactive);
+        Statistics<UserDto> stats = new Statistics<>(
+        total,
+        Map.of(
+            "active", active,
+            "inactive", inactive
+        )
+    );
         
-        return new PagedUserResponse(users, stats);
+        return new PagedResponse<>(users, stats);
     }
 
     @Override
-    public PagedUserResponse findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection) {
+    public PagedResponse<UserDto> findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection) {
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
     
         Page<User> userPage = (currentUserId != null)
@@ -344,13 +509,19 @@ public void deleteUser(Long id) {
         long active = userRepository.countByNameAndActiveAndCurrentUser(name, true, currentUserId);
         long inactive = userRepository.countByNameAndActiveAndCurrentUser(name, false, currentUserId);
     
-        UserStatistics stats = new UserStatistics(total, active, inactive);
+        Statistics<UserDto> stats = new Statistics<>(
+        total,
+        Map.of(
+            "active", active,
+            "inactive", inactive
+        )
+    );
     
-        return new PagedUserResponse(users, stats);
+        return new PagedResponse<>(users, stats);
     }
 
     @Override
-    public PagedUserResponse findByFilters(String roleName, Boolean active, Long currentUserId,
+    public PagedResponse<UserDto> findByFilters(String roleName, Boolean active, Long currentUserId,
                                     int page, int size, String sortBy, String sortDirection) {
         String normalizedRole = normalizeRoleForFilter(roleName);
         Pageable pageable = createPageable(page, size, sortBy, sortDirection);
@@ -368,13 +539,19 @@ public void deleteUser(Long id) {
         long totalActive = userRepository.countByRoleAndActiveAndCurrentUser(normalizedRole, true, currentUserId);
         long totalInactive = userRepository.countByRoleAndActiveAndCurrentUser(normalizedRole, false, currentUserId);
     
-        UserStatistics stats = new UserStatistics(total, totalActive, totalInactive);
+        Statistics<UserDto> stats = new Statistics<>(
+        total,
+        Map.of(
+            "active", totalActive,
+            "inactive", totalInactive
+        )
+    );
     
-        return new PagedUserResponse(users, stats);
+        return new PagedResponse<>(users, stats);
     }
 
     @Override
-    public PagedUserResponse findByNameAndFilters(String name, String roleName, Boolean active, 
+    public PagedResponse<UserDto> findByNameAndFilters(String name, String roleName, Boolean active, 
                                            Long currentUserId, int page, int size, 
                                            String sortBy, String sortDirection) {
         String normalizedRole = normalizeRoleForFilter(roleName);
@@ -390,14 +567,19 @@ public void deleteUser(Long id) {
     
         Page<UserDto> users = userPage.map(this::enrichWithLastAction);
 
-   
         long total = userRepository.countByNameAndRoleAndCurrentUser(name, normalizedRole, currentUserId);
         long totalActive = userRepository.countByNameAndRoleAndActiveAndCurrentUser(name, normalizedRole, true, currentUserId);
         long totalInactive = userRepository.countByNameAndRoleAndActiveAndCurrentUser(name, normalizedRole, false, currentUserId);
     
-        UserStatistics stats = new UserStatistics(total, totalActive, totalInactive);
+        Statistics<UserDto> stats = new Statistics<>(
+        total,
+        Map.of(
+            "active", totalActive,
+            "inactive", totalInactive
+        )
+    );
     
-        return new PagedUserResponse(users, stats);
+        return new PagedResponse<>(users, stats);
     }
 
     @Override
@@ -431,307 +613,369 @@ public void deleteUser(Long id) {
             throw new DuplicateResourceException("User", "nationalId", nationalId);
         }
     }
+
     @Override
     @Transactional
     public BulkUserImportResult saveBulkUsers(List<UserSaveDto> users) {
-    log.info("Iniciando importación masiva de {} usuarios", users.size());
-    
-    List<UserDto> importedUsers = new ArrayList<>();
-    List<UserImportError> errors = new ArrayList<>();
-    
-    Map<String, Integer> emailMap = new HashMap<>();
-    Map<String, Integer> nationalIdMap = new HashMap<>();
-    Set<Integer> rowsWithErrors = new HashSet<>();
-    
-    for (int i = 0; i < users.size(); i++) {
-        UserSaveDto user = users.get(i);
-        int rowNumber = i + 2; 
-        String role = (user.roles() != null && !user.roles().isEmpty()) 
-            ? user.roles().get(0) 
-            : DEFAULT_ROLE;
-        
-        
-            if (emailMap.containsKey(user.email())) {
-                errors.add(new UserImportError(
-                    rowNumber, user.email(), user.nationalId(), role,
-                    "Email duplicado en el CSV (también en fila " + emailMap.get(user.email()) + ")"
-                ));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-        
-            if (nationalIdMap.containsKey(user.nationalId())) {
-                errors.add(new UserImportError(
-                    rowNumber, user.email(), user.nationalId(), role,
-                    "Cédula duplicada en el CSV (también en fila " + nationalIdMap.get(user.nationalId()) + ")"
-                ));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            // === VALIDACIÓN 2: Nombre ===
-            if (user.name() == null || user.name().isBlank()) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "El nombre es obligatorio"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            // === VALIDACIÓN 3: Email ===
-            if (user.email() == null || user.email().isBlank()) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "El email es obligatorio"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            if (!user.email().matches(EMAIL_REGEX)) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "Formato de email inválido. Debe tener formato usuario@dominio.com"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            // === VALIDACIÓN 4: Cédula ===
-            if (user.nationalId() == null || user.nationalId().isBlank()) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "La cédula es obligatoria"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            // === VALIDACIÓN 5: Teléfono ===
-            if (user.phone() == null || user.phone().isBlank()) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "El teléfono es obligatorio"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            if (!user.phone().matches(PHONE_REGEX)) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "Formato de teléfono inválido. Debe ser solo números o formato internacional con + (ej: +573001234567 o 3001234567)"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            // === VALIDACIÓN 6: Contraseña ===
-            if (user.password() == null || user.password().isBlank()) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "La contraseña es obligatoria"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-            
-            if (user.password().length() < MIN_PASSWORD_LENGTH) {
-                errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
-                    "La contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres"));
-                rowsWithErrors.add(rowNumber);
-                continue;
-            }
-
-            emailMap.put(user.email(), rowNumber);
-            nationalIdMap.put(user.nationalId(), rowNumber);
-    }
-    
-    Set<String> emails = users.stream()
-        .map(UserSaveDto::email)
-        .filter(email -> email != null && !email.isBlank())
-        .collect(Collectors.toSet());
-    
-    Set<String> nationalIds = users.stream()
-        .map(UserSaveDto::nationalId)
-        .filter(id -> id != null && !id.isBlank())
-        .collect(Collectors.toSet());
-    
-    List<User> existingUsers = userRepository.findByEmailInOrNationalIdIn(
-        new ArrayList<>(emails), 
-        new ArrayList<>(nationalIds)
-    );
-    
-    Map<String, User> existingEmailMap = existingUsers.stream()
-        .collect(Collectors.toMap(User::getEmail, u -> u, (u1, u2) -> u1));
-    
-    Map<String, User> existingNationalIdMap = existingUsers.stream()
-        .collect(Collectors.toMap(User::getNationalId, u -> u, (u1, u2) -> u1));
-    
-    Map<String, Role> roleMap = new HashMap<>();
-    for (String roleName : ALLOWED_ROLE_NAMES) {
-        Role role = roleRepository.findByNameContainingIgnoreCase(roleName);
-        if (role != null) {
-            roleMap.put(roleName, role);
-        }
-    }
-    
-    Role defaultRole = roleMap.get(DEFAULT_ROLE);
-    if (defaultRole == null) {
-        throw new BadRequestException("El rol por defecto 'CIUDADANO' no existe en la base de datos");
-    }
-    
-    List<User> usersToSave = new ArrayList<>();
-    
-    for (int i = 0; i < users.size(); i++) {
-        UserSaveDto userDto = users.get(i);
-        int rowNumber = i + 2;
-        
-        if (rowsWithErrors.contains(rowNumber)) {
-            continue;
-        }
-        
         try {
-            String roleName = (userDto.roles() != null && !userDto.roles().isEmpty()) 
-                ? userDto.roles().get(0).trim().toUpperCase() 
-                : DEFAULT_ROLE;
+            log.info("Iniciando importación masiva de {} usuarios", users.size());
             
-            if (existingEmailMap.containsKey(userDto.email())) {
-                errors.add(new UserImportError(
-                    rowNumber,
-                    userDto.email(),
-                    userDto.nationalId(),
-                    roleName,
-                    "El email ya existe en la base de datos"
-                ));
-                continue;
+            List<UserDto> importedUsers = new ArrayList<>();
+            List<UserImportError> errors = new ArrayList<>();
+            
+            Map<String, Integer> emailMap = new HashMap<>();
+            Map<String, Integer> nationalIdMap = new HashMap<>();
+            Set<Integer> rowsWithErrors = new HashSet<>();
+            
+            // Validación de duplicados en CSV y campos requeridos
+            for (int i = 0; i < users.size(); i++) {
+                UserSaveDto user = users.get(i);
+                int rowNumber = i + 2; 
+                String role = (user.roles() != null && !user.roles().isEmpty()) 
+                    ? user.roles().get(0) 
+                    : DEFAULT_ROLE;
+                
+                if (emailMap.containsKey(user.email())) {
+                    errors.add(new UserImportError(
+                        rowNumber, user.email(), user.nationalId(), role,
+                        "Email duplicado en el CSV (también en fila " + emailMap.get(user.email()) + ")"
+                    ));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+            
+                if (nationalIdMap.containsKey(user.nationalId())) {
+                    errors.add(new UserImportError(
+                        rowNumber, user.email(), user.nationalId(), role,
+                        "Cédula duplicada en el CSV (también en fila " + nationalIdMap.get(user.nationalId()) + ")"
+                    ));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.name() == null || user.name().isBlank()) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "El nombre es obligatorio"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.email() == null || user.email().isBlank()) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "El email es obligatorio"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (!user.email().matches(EMAIL_REGEX)) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "Formato de email inválido. Debe tener formato usuario@dominio.com"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.nationalId() == null || user.nationalId().isBlank()) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "La cédula es obligatoria"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.phone() == null || user.phone().isBlank()) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "El teléfono es obligatorio"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (!user.phone().matches(PHONE_REGEX)) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "Formato de teléfono inválido. Debe ser solo números o formato internacional con + (ej: +573001234567 o 3001234567)"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.password() == null || user.password().isBlank()) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "La contraseña es obligatoria"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+                
+                if (user.password().length() < MIN_PASSWORD_LENGTH) {
+                    errors.add(new UserImportError(rowNumber, user.email(), user.nationalId(), role, 
+                        "La contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres"));
+                    rowsWithErrors.add(rowNumber);
+                    continue;
+                }
+
+                emailMap.put(user.email(), rowNumber);
+                nationalIdMap.put(user.nationalId(), rowNumber);
             }
             
-            if (existingNationalIdMap.containsKey(userDto.nationalId())) {
-                errors.add(new UserImportError(
-                    rowNumber,
-                    userDto.email(),
-                    userDto.nationalId(),
-                    roleName,
-                    "La cédula ya existe en la base de datos"
-                ));
-                continue;
+            Set<String> emails = users.stream()
+                .map(UserSaveDto::email)
+                .filter(email -> email != null && !email.isBlank())
+                .collect(Collectors.toSet());
+            
+            Set<String> nationalIds = users.stream()
+                .map(UserSaveDto::nationalId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+            
+            List<User> existingUsers = userRepository.findByEmailInOrNationalIdIn(
+                new ArrayList<>(emails), 
+                new ArrayList<>(nationalIds)
+            );
+            
+            Map<String, User> existingEmailMap = existingUsers.stream()
+                .collect(Collectors.toMap(User::getEmail, u -> u, (u1, u2) -> u1));
+            
+            Map<String, User> existingNationalIdMap = existingUsers.stream()
+                .collect(Collectors.toMap(User::getNationalId, u -> u, (u1, u2) -> u1));
+            
+            Map<String, Role> roleMap = new HashMap<>();
+            for (String roleName : ALLOWED_ROLE_NAMES) {
+                Role role = roleRepository.findByNameContainingIgnoreCase(roleName);
+                if (role != null) {
+                    roleMap.put(roleName, role);
+                }
             }
             
-            if (!ALLOWED_ROLE_NAMES.contains(roleName)) {
-                errors.add(new UserImportError(
-                    rowNumber,
-                    userDto.email(),
-                    userDto.nationalId(),
-                    roleName,
-                    "Rol no válido. Roles permitidos: " + String.join(", ", ALLOWED_ROLE_NAMES)
-                ));
-                continue;
+            Role defaultRole = roleMap.get(DEFAULT_ROLE);
+            if (defaultRole == null) {
+                throw new BadRequestException("El rol por defecto 'CIUDADANO' no existe en la base de datos");
             }
             
-            Role role = roleMap.get(roleName);
-            if (role == null) {
-                errors.add(new UserImportError(
-                    rowNumber,
-                    userDto.email(),
-                    userDto.nationalId(),
-                    roleName,
-                    "El rol '" + roleName + "' no existe en la base de datos"
-                ));
-                continue;
+            List<User> usersToSave = new ArrayList<>();
+            
+            for (int i = 0; i < users.size(); i++) {
+                UserSaveDto userDto = users.get(i);
+                int rowNumber = i + 2;
+                
+                if (rowsWithErrors.contains(rowNumber)) {
+                    continue;
+                }
+                
+                try {
+                    String roleName = (userDto.roles() != null && !userDto.roles().isEmpty()) 
+                        ? userDto.roles().get(0).trim().toUpperCase() 
+                        : DEFAULT_ROLE;
+                    
+                    if (existingEmailMap.containsKey(userDto.email())) {
+                        errors.add(new UserImportError(
+                            rowNumber,
+                            userDto.email(),
+                            userDto.nationalId(),
+                            roleName,
+                            "El email ya existe en la base de datos"
+                        ));
+                        continue;
+                    }
+                    
+                    if (existingNationalIdMap.containsKey(userDto.nationalId())) {
+                        errors.add(new UserImportError(
+                            rowNumber,
+                            userDto.email(),
+                            userDto.nationalId(),
+                            roleName,
+                            "La cédula ya existe en la base de datos"
+                        ));
+                        continue;
+                    }
+                    
+                    if (!ALLOWED_ROLE_NAMES.contains(roleName)) {
+                        errors.add(new UserImportError(
+                            rowNumber,
+                            userDto.email(),
+                            userDto.nationalId(),
+                            roleName,
+                            "Rol no válido. Roles permitidos: " + String.join(", ", ALLOWED_ROLE_NAMES)
+                        ));
+                        continue;
+                    }
+                    
+                    Role role = roleMap.get(roleName);
+                    if (role == null) {
+                        errors.add(new UserImportError(
+                            rowNumber,
+                            userDto.email(),
+                            userDto.nationalId(),
+                            roleName,
+                            "El rol '" + roleName + "' no existe en la base de datos"
+                        ));
+                        continue;
+                    }
+                    
+                    User user = userMapper.toUserSaveDtoToEntity(userDto);
+                    user.setPassword(passwordEncoder.encode(userDto.password()));
+                    user.setActive(true);
+                    user.setRoles(List.of(role));
+                    
+                    usersToSave.add(user);
+                    
+                } catch (Exception e) {
+                    log.error("Error procesando usuario en fila {}: {}", rowNumber, e.getMessage(), e);
+                    String roleName = (userDto.roles() != null && !userDto.roles().isEmpty()) 
+                        ? userDto.roles().get(0) 
+                        : DEFAULT_ROLE;
+                    errors.add(new UserImportError(
+                        rowNumber,
+                        userDto.email(),
+                        userDto.nationalId(),
+                        roleName,
+                        "Error: " + e.getMessage()
+                    ));
+                }
             }
             
-            User user = userMapper.toUserSaveDtoToEntity(userDto);
-            user.setPassword(passwordEncoder.encode(userDto.password()));
-            user.setActive(true);
-            user.setRoles(List.of(role));
+            int successCount = 0;
+            if (!usersToSave.isEmpty()) {
+                try {
+                    List<User> savedUsers = userRepository.saveAll(usersToSave);
+                    successCount = savedUsers.size();
+                    
+                    importedUsers = savedUsers.stream()
+                        .map(userMapper::toDto)
+                        .toList();
+                    
+                    log.info("Se guardaron exitosamente {} usuarios", successCount);
+                    
+                } catch (Exception e) {
+                    log.error("Error guardando usuarios en lote: {}", e.getMessage(), e);
+                    throw new BadRequestException("Error al guardar usuarios: " + e.getMessage());
+                }
+            }
             
-            usersToSave.add(user);
+            int failCount = errors.size();
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("totalRecords", users.size());
+            metadata.put("successCount", successCount);
+            metadata.put("failCount", failCount);
+            metadata.put("errorSample", errors.stream().limit(5).map(UserImportError::errorMessage).collect(Collectors.toList()));
+            
+            auditHelper.logComplete(
+                UserActionType.USER_BULK_IMPORT.name(),
+                String.format("Importación masiva completada: %d exitosos, %d fallidos de %d totales", 
+                            successCount, failCount, users.size()),
+                EntityType.USER,
+                null,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            log.info("Importación masiva completada: {} exitosos, {} fallidos de {} totales", 
+                     successCount, failCount, users.size());
+            
+            return new BulkUserImportResult(
+                users.size(),
+                successCount,
+                failCount,
+                errors,
+                importedUsers
+            );
             
         } catch (Exception e) {
-            log.error("Error procesando usuario en fila {}: {}", rowNumber, e.getMessage(), e);
-            String roleName = (userDto.roles() != null && !userDto.roles().isEmpty()) 
-                ? userDto.roles().get(0) 
-                : DEFAULT_ROLE;
-            errors.add(new UserImportError(
-                rowNumber,
-                userDto.email(),
-                userDto.nationalId(),
-                roleName,
-                "Error: " + e.getMessage()
-            ));
+            auditHelper.logFailure(
+                UserActionType.USER_BULK_IMPORT.name(),
+                "Error en importación masiva de usuarios",
+                e.getMessage()
+            );
+            throw e;
         }
     }
-    
-    int successCount = 0;
-    if (!usersToSave.isEmpty()) {
+
+    @Override
+    public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
         try {
-            List<User> savedUsers = userRepository.saveAll(usersToSave);
-            successCount = savedUsers.size();
+            log.info("Exportando {} usuarios a CSV", users.size());
             
-            importedUsers = savedUsers.stream()
-                .map(userMapper::toDto)
-                .toList();
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
             
-            log.info("Se guardaron exitosamente {} usuarios", successCount);
+            writer.println("name,email,nationalId,phone,role,active,createdAt");
+            
+            for (UserDto user : users) {
+                String role = (user.roles() != null && !user.roles().isEmpty()) 
+                    ? user.roles().get(0) 
+                    : DEFAULT_ROLE;
+                
+                String createdAt = (user.createdAt() != null) 
+                    ? user.createdAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) 
+                    : "";
+                
+                writer.printf("%s,%s,%s,%s,%s,%s,%s%n",
+                    escapeCSV(user.name()),
+                    escapeCSV(user.email()),
+                    escapeCSV(user.nationalId()),
+                    escapeCSV(user.phone()),
+                    role,
+                    user.active(),
+                    createdAt
+                );
+            }
+            
+            writer.flush();
+            writer.close();
+            
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("usersExported", users.size());
+            
+            auditHelper.logComplete(
+                UserActionType.USER_EXPORT.name(),
+                String.format("Exportación de %d usuarios a CSV", users.size()),
+                EntityType.USER,
+                null,
+                ActionResult.SUCCESS,
+                metadata
+            );
+            
+            return outputStream.toByteArray();
             
         } catch (Exception e) {
-            log.error("Error guardando usuarios en lote: {}", e.getMessage(), e);
-            throw new BadRequestException("Error al guardar usuarios: " + e.getMessage());
+            auditHelper.logFailure(
+                UserActionType.USER_EXPORT.name(),
+                "Error al exportar usuarios a CSV",
+                e.getMessage()
+            );
+            throw e;
         }
-    }
-    
-    int failCount = errors.size();
-    
-    logActionForAdmin(
-        UserActionType.USER_BULK_IMPORT,
-        String.format("Importación masiva completada: %d exitosos, %d fallidos de %d totales", 
-                     successCount, failCount, users.size())
-    );
-    
-    log.info("Importación masiva completada: {} exitosos, {} fallidos de {} totales", 
-             successCount, failCount, users.size());
-    
-    return new BulkUserImportResult(
-        users.size(),
-        successCount,
-        failCount,
-        errors,
-        importedUsers
-    );
-}
-
-@Override
-public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
-    log.info("Exportando {} usuarios a CSV", users.size());
-    
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, StandardCharsets.UTF_8));
-    
-    writer.println("name,email,nationalId,phone,role,active,createdAt");
-    
-    for (UserDto user : users) {
-        String role = (user.roles() != null && !user.roles().isEmpty()) 
-            ? user.roles().get(0) 
-            : DEFAULT_ROLE;
-        
-        String createdAt = (user.createdAt() != null) 
-            ? user.createdAt().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) 
-            : "";
-        
-        writer.printf("%s,%s,%s,%s,%s,%s,%s%n",
-            escapeCSV(user.name()),
-            escapeCSV(user.email()),
-            escapeCSV(user.nationalId()),
-            escapeCSV(user.phone()),
-            role,
-            user.active(),
-            createdAt
-        );
-    }
-    
-    writer.flush();
-    writer.close();
-    
-    logActionForAdmin(
-        UserActionType.USER_EXPORT,
-        String.format("Exportación de %d usuarios a CSV", users.size())
-    );
-    
-    return outputStream.toByteArray();
     }
 
     public byte[] exportAllUsersToCSV() throws IOException {
         List<UserDto> allUsers = findAll();
         return exportUsersToCSV(allUsers);
     }
+
+    @Override
+    @Transactional
+    public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOException {
+        try {
+            log.info("Iniciando importación de usuarios desde CSV: {}", file.getOriginalFilename());
+            
+            validateCSVFile(file);
+            List<UserSaveDto> users = parseCSVFile(file);
+            
+            if (users.isEmpty()) {
+                throw new BadRequestException("No se encontraron usuarios válidos en el archivo CSV");
+            }
+            
+            log.info("Se parsearon {} registros del CSV", users.size());
+            
+            return saveBulkUsers(users);
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                UserActionType.USER_BULK_IMPORT.name(),
+                "Error al importar usuarios desde CSV: " + file.getOriginalFilename(),
+                e.getMessage()
+            );
+            throw e;
+        }
+    }
+
+    // ==================== MÉTODOS PRIVADOS DE VALIDACIÓN ====================
 
     private String escapeCSV(String value) {
         if (value == null) {
@@ -779,13 +1023,6 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
         return normalized;
     }
 
-    private void validateUserCanBeDeleted(Long userId) {
-        long projects = projectRepository.countByCreatorId(userId);
-        if (projects > 0) {
-            throw new BadRequestException("No se puede eliminar el usuario: tiene " + projects + " proyecto(s) asociados");
-        }
-    }
-
     private void validateRolesProvided(List<String> roles) {
         if (roles == null || roles.isEmpty()) {
             throw new BadRequestException("Se debe proporcionar al menos un rol para el usuario");
@@ -830,7 +1067,6 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
             throw new DuplicateResourceException("User", "nationalId", nationalId);
         }
     }
-    
 
     private User createUserFromDto(UserSaveDto user) {
         User userToSave = userMapper.toUserSaveDtoToEntity(user);
@@ -887,27 +1123,6 @@ public byte[] exportUsersToCSV(List<UserDto> users) throws IOException {
             lastAction
         );
     }
-
-    @Override
-@Transactional
-public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOException {
-    log.info("Iniciando importación de usuarios desde CSV: {}", file.getOriginalFilename());
-    
-
-    validateCSVFile(file);
-    
-
-    List<UserSaveDto> users = parseCSVFile(file);
-    
-    if (users.isEmpty()) {
-        throw new BadRequestException("No se encontraron usuarios válidos en el archivo CSV");
-    }
-    
-    log.info("Se parsearon {} registros del CSV", users.size());
-    
-    return saveBulkUsers(users);
-}
-
 
     private void validateCSVFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
@@ -977,7 +1192,6 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
         
         return users;
     }
-    
 
     private boolean detectHeaderRow(String[] row) {
         if (row == null || row.length < 5) {
@@ -1031,6 +1245,7 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
             nationalId,
             phone,
             password,
+            true,
             List.of(role)
         );
     }
@@ -1049,33 +1264,5 @@ public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOExce
         field = field.replace("\"\"", "\"");
         
         return field;
-    }
-
-    private ActionDto logAction(UserActionType actionType, String description, Long userId) {
-        if (userId == null) return null;
-        
-        User user = userRepository.findById(userId).orElse(null);
-        if (user == null) return null;
-        
-        Long accessId = (Long) request.getAttribute("currentAccessId");
-        if (accessId == null) return null;
-        
-        Access access = accessService.findById(accessId);
-        if (access == null) return null;
-
-        return actionService.save(new ActionSaveDto(actionType.name(), description, user, access));
-    }
-
-    private ActionDto logActionForAdmin(UserActionType actionType, String description) {
-        Long accessId = (Long) request.getAttribute("currentAccessId");
-        if (accessId == null) return null;
-        
-        Access access = accessService.findById(accessId);
-        if (access == null) return null;
-        
-        User admin = access.getUser();
-        if (admin == null) return null;
-    
-        return actionService.save(new ActionSaveDto(actionType.name(), description, admin, access));
     }
 }

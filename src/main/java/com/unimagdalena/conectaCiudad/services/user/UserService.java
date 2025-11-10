@@ -5,8 +5,8 @@ import java.util.List;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
-import com.unimagdalena.conectaCiudad.Dto.user.PagedUserResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 
@@ -24,11 +24,11 @@ public interface UserService {
     UserDto addRole(Long userId, String roleName);
     UserDto removeRole(Long userId, String roleName);
     UserDto toggleUserStatus(Long userId);
-    PagedUserResponse findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection);
-    PagedUserResponse findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection);
-    PagedUserResponse findByFilters(String roleName, Boolean active, Long currentUserId, 
+    PagedResponse<UserDto> findAllExceptCurrent(Long currentUserId, int page, int size, String sortBy, String sortDirection);
+    PagedResponse<UserDto> findByNameWithPagination(String name, Long currentUserId, int page, int size, String sortBy, String sortDirection);
+    PagedResponse<UserDto> findByFilters(String roleName, Boolean active, Long currentUserId, 
                                  int page, int size, String sortBy, String sortDirection);
-    PagedUserResponse findByNameAndFilters(String name, String roleName, Boolean active, 
+    PagedResponse<UserDto> findByNameAndFilters(String name, String roleName, Boolean active, 
                                         Long currentUserId, int page, int size, 
                                         String sortBy, String sortDirection);
     void validateUniqueFields(String email, String nationalId);

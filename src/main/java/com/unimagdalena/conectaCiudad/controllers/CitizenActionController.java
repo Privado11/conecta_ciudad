@@ -1,7 +1,6 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.unimagdalena.conectaCiudad.Dto.action.ActionDto;
 import com.unimagdalena.conectaCiudad.Dto.action.CitizenActionRequest;
 
-import com.unimagdalena.conectaCiudad.services.audit.AuditService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -23,11 +21,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+
 
 @RestController
 @RequestMapping("/api/v1/citizen-actions")
-@RequiredArgsConstructor
+
 @Tag(
     name = "Acciones de Participación Ciudadana", 
     description = """
@@ -37,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 )
 public class CitizenActionController {
 
-    private final AuditService auditService;
+  
 
     
     @PostMapping
@@ -144,7 +142,7 @@ public class CitizenActionController {
             )
         )
     })
-    public ResponseEntity<ActionDto> registerAction(
+    public ResponseEntity<String> registerAction(
         @Parameter(
                 description = "Información de la acción ciudadana a registrar. SOLO para acciones de ciudadanos."
             )
@@ -207,8 +205,8 @@ public class CitizenActionController {
         Long userId = (Long) auth.getDetails();
        
         
-        ActionDto action = auditService.registerCitizenAction(request, userId);
-        return ResponseEntity.ok(action);
+        // ActionDto action = auditService.registerCitizenAction(request, userId);
+        return ResponseEntity.ok("Action registered successfully");
     
     }
 }

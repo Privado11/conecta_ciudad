@@ -20,10 +20,12 @@ import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessSaveDto;
 import com.unimagdalena.conectaCiudad.entities.Access;
 import com.unimagdalena.conectaCiudad.entities.User;
+import com.unimagdalena.conectaCiudad.enums.ActionResult;
+import com.unimagdalena.conectaCiudad.enums.EntityType;
 import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
-import com.unimagdalena.conectaCiudad.services.action.ActionService;
+import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
 
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -31,205 +33,213 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.unimagdalena.conectaCiudad.security.TokenJwtConfig.*;
 
+@Slf4j
 @AllArgsConstructor
-public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter{
+public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
-    private AuthenticationManager authenticationManager;
-    private UserRepository userRepository;
-    private AccessService accessService;
-    private AccessMapper accessMapper;
-    private ActionService actionService;
-    
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final AccessService accessService;
+    private final AccessMapper accessMapper;
+    private final AuditHelper auditHelper;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+
     @Override
-    public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
-        
-        User user=null;
-        String username=null;
-        String password=null;
+    public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
+            throws AuthenticationException {
 
-        try{
-            user=new ObjectMapper().readValue(request.getInputStream(), User.class);
+        try {
+            User user = objectMapper.readValue(request.getInputStream(), User.class);
+            String username = user.getEmail();
+            String password = user.getPassword();
 
-            username=user.getEmail();
-            password=user.getPassword();
+            UsernamePasswordAuthenticationToken authToken =
+                    new UsernamePasswordAuthenticationToken(username, password);
 
-        }catch(Exception e){
-            e.printStackTrace();
+            return authenticationManager.authenticate(authToken);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error al leer credenciales: " + e.getMessage(), e);
         }
-
-        UsernamePasswordAuthenticationToken authenticationToken=new UsernamePasswordAuthenticationToken(username, password);
-
-        return authenticationManager.authenticate(authenticationToken);
     }
 
-
     @Override
-    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException, ServletException {
+    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response,
+                                            FilterChain chain, Authentication authResult)
+            throws IOException, ServletException {
 
-        org.springframework.security.core.userdetails.User springUser = (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
+        org.springframework.security.core.userdetails.User springUser =
+                (org.springframework.security.core.userdetails.User) authResult.getPrincipal();
 
         User userEntity = userRepository.findByEmail(springUser.getUsername());
-
-    
-
         if (userEntity == null) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
             return;
         }
 
         if (!userEntity.getActive()) {
-
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Tu cuenta está desactivada. Contacta al administrador.");
+            response.sendError(HttpServletResponse.SC_FORBIDDEN,
+                    "Tu cuenta está desactivada. Contacta al administrador.");
             return;
         }
 
         String ipAddress = getIp(request);
         String userAgent = request.getHeader("User-Agent");
         String location = getLocationFromIp(ipAddress);
-        
 
-         AccessDto accessDto = accessService.save(
-            new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
+        AccessDto accessDto = accessService.save(
+                new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
         );
-
         Access access = accessMapper.toEntity(accessDto);
-        actionService.logAction(UserActionType.USER_LOGIN.name(), "Inicio de sesión exitoso", userEntity, access);
+        Map<String, Object> metadata = new HashMap<>();
+        metadata.put("ipAddress", ipAddress);
+        metadata.put("location", location);
+        metadata.put("userAgent", userAgent);
+
+        try {
+            auditHelper.logCompleteWithAccess(
+                UserActionType.USER_LOGIN.name(),
+                "Inicio de sesión exitoso",
+                EntityType.USER,
+                userEntity.getId(),
+                ActionResult.SUCCESS,
+                metadata,
+                access  
+            );
+        } catch (Exception e) {
+            log.error("Error al registrar login exitoso: {}", e.getMessage(), e);
+        }
 
         List<String> roleNames = springUser.getAuthorities().stream()
-            .map(a -> a.getAuthority())
-            .toList();
+                .map(a -> a.getAuthority())
+                .toList();
+        String token = Jwts.builder()
+                .subject(springUser.getUsername())
+                .claims(Map.of(
+                        "roles", roleNames,
+                        "id", userEntity.getId(),
+                        "access_id", accessDto.id()
+                ))
+                .signWith(SECRET_KEY)
+                .expiration(new Date(System.currentTimeMillis() + 3600000))
+                .issuedAt(new Date())
+                .compact();
 
-        String token=Jwts.builder()
-            .subject(springUser.getUsername())
-            .claims(Map.of("roles", roleNames, "id", userEntity.getId(), "access_id", accessDto.id()))
-            .signWith(SECRET_KEY)
-            .expiration(new Date(System.currentTimeMillis() + 3600000))
-            .issuedAt(new Date())
-            .compact();
-
-        
         response.addHeader(HEADER_AUTHORIZATION, PREFIX_TOKEN + token);
 
-        Map<String, Object> json=new HashMap<>();
+        Map<String, Object> json = new HashMap<>();
         json.put("token", token);
         json.put("user", Map.of(
-            "id", userEntity.getId(),
-            "name", userEntity.getName(),
-            "email", userEntity.getEmail(),
-            "roles", roleNames
+                "id", userEntity.getId(),
+                "name", userEntity.getName(),
+                "email", userEntity.getEmail(),
+                "roles", roleNames
         ));
         json.put("message", "Bienvenido " + userEntity.getName() + ", has iniciado sesión correctamente");
 
-        response.getWriter().write(new ObjectMapper().writeValueAsString(json));
         response.setContentType(CONTENT_TYPE);
-        response.setStatus(200);
-
-
-
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.getWriter().write(objectMapper.writeValueAsString(json));
     }
 
-
     @Override
-    protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response, AuthenticationException failed) throws IOException, ServletException {
-        Map<String, String> json=new HashMap<>();
-        
+    protected void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
+                                              AuthenticationException failed)
+            throws IOException, ServletException {
+
+        Map<String, String> json = new HashMap<>();
         json.put("message", "Correo o contraseña incorrectos");
         json.put("error", failed.getMessage());
 
-        response.getWriter().write(new ObjectMapper().writeValueAsString(json));
         response.setContentType(CONTENT_TYPE);
-        response.setStatus(401);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.getWriter().write(objectMapper.writeValueAsString(json));
 
-        
- 
-    try {
-        String ipAddress = getIp(request);
-        String userAgent = request.getHeader("User-Agent");
-        
-     
-        String body = request.getReader().lines().reduce("", (accumulator, actual) -> accumulator + actual);
-        User user = new ObjectMapper().readValue(body, User.class);
-        User userEntity = userRepository.findByEmail(user.getEmail());
-        
-        if (userEntity != null) {
-            accessService.save(new AccessSaveDto(
-                userEntity, 
-                ipAddress, 
-                userAgent, 
-                null, 
-                false 
-            ));
+        try {
+            String ipAddress = getIp(request);
+            String userAgent = request.getHeader("User-Agent");
+
+            String body = request.getReader().lines().reduce("", (acc, line) -> acc + line);
+            User user = objectMapper.readValue(body, User.class);
+            User userEntity = userRepository.findByEmail(user.getEmail());
+
+            if (userEntity != null) {
+                accessService.save(new AccessSaveDto(
+                        userEntity,
+                        ipAddress,
+                        userAgent,
+                        null,
+                        false
+                ));
+
+                Map<String, Object> metadata = new HashMap<>();
+                metadata.put("ipAddress", ipAddress);
+                metadata.put("userAgent", userAgent);
+                metadata.put("reason", failed.getMessage());
+
+                Access failedAccess = accessMapper.toEntity(
+                        accessService.save(new AccessSaveDto(userEntity, ipAddress, userAgent, null, false))
+                );
+
+                auditHelper.logCompleteWithAccess(
+                        UserActionType.USER_LOGIN_FAILED.name(),
+                        "Intento de inicio de sesión fallido",
+                        EntityType.USER,
+                        userEntity.getId(),
+                        ActionResult.FAILED,
+                        metadata,
+                        failedAccess
+                );
+            }
+        } catch (Exception e) {
         }
-    } catch (Exception e) { 
-        
     }
-    }
+
 
     private String getIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-    
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-    
-       
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-    
-       
-        if (ip != null && ip.contains(":") && ip.split(":").length == 2) {
-            String[] parts = ip.split(":");
-            if (parts[0].matches("\\d+\\.\\d+\\.\\d+\\.\\d+")) { 
-                ip = parts[0];
+        String[] headers = {
+                "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
+                "WL-Proxy-Client-IP", "HTTP_X_FORWARDED_FOR"
+        };
+
+        for (String header : headers) {
+            String ip = request.getHeader(header);
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                if (ip.contains(",")) {
+                    ip = ip.split(",")[0].trim();
+                }
+                return ip;
             }
         }
-    
-        return ip;
+        return request.getRemoteAddr();
     }
-    
 
     private String getLocationFromIp(String ipAddress) {
-        
-        if (ipAddress == null || ipAddress.equals("127.0.0.1") || 
-            ipAddress.equals("::1") || ipAddress.equals("0:0:0:0:0:0:0:1") ||
-            ipAddress.startsWith("192.168.") || ipAddress.startsWith("10.") ||
-            ipAddress.startsWith("172.")) {
+        if (ipAddress == null || ipAddress.equals("127.0.0.1") ||
+            ipAddress.equals("::1") || ipAddress.startsWith("192.168.") ||
+            ipAddress.startsWith("10.") || ipAddress.startsWith("172.")) {
             return "Local";
         }
-        
+
         try {
             String apiUrl = "http://ip-api.com/json/" + ipAddress;
             RestTemplate restTemplate = new RestTemplate();
             String response = restTemplate.getForObject(apiUrl, String.class);
-    
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode json = mapper.readTree(response);
-    
+
+            JsonNode json = objectMapper.readTree(response);
             if ("success".equals(json.get("status").asText())) {
                 String city = json.get("city").asText();
                 String country = json.get("country").asText();
                 return city + ", " + country;
             }
-        } catch (Exception e) {
-            
-            return null;
+        } catch (Exception ignored) {
         }
-    
         return null;
     }
-    
-
 }

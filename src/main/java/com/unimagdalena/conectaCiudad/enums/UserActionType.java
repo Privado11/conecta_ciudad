@@ -9,6 +9,7 @@ public enum UserActionType {
     USER_ROLE_ADDED("Adición de rol al usuario"),
     USER_ROLE_REMOVED("Remoción de rol del usuario"),
     USER_LOGIN("Inicio de sesión"),
+    USER_LOGIN_FAILED("Intento fallido de inicio de sesión"),
     USER_BULK_IMPORT("Importación masiva de usuarios"),
     USER_EXPORT("Exportación de usuarios");
 

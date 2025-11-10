@@ -2,7 +2,10 @@ package com.unimagdalena.conectaCiudad.services.project;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
+import com.unimagdalena.conectaCiudad.enums.EntityType;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.stereotype.Service;
@@ -14,8 +17,7 @@ import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.entities.Access;
-import com.unimagdalena.conectaCiudad.entities.Action;
+import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
@@ -24,11 +26,11 @@ import org.springframework.security.access.AccessDeniedException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
-import com.unimagdalena.conectaCiudad.services.access.AccessService;
+import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
 
 import lombok.RequiredArgsConstructor;
 
-import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
+
 
 @Service
 @RequiredArgsConstructor
@@ -37,10 +39,9 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
-    private final ActionRepository actionRepository; 
-    private final AccessService accessService;
-    private final UserMapper userMapper;
     private final ProjectMapper projectMapper;
+    private final AuditHelper auditHelper;
+    private final UserMapper userMapper;
 
     
     @Override
@@ -89,85 +90,84 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public ProjectDto saveProject(ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
-       
-        if (projectSaveDto.startAt() == null || projectSaveDto.endAt() == null) {
-            throw new IllegalArgumentException("Both start and end dates are required");
+        try {
+            validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
+            
+            User creator = findUserById(creatorId);
+            validateUserIsLeader(creator);
+            
+            Project project = projectMapper.toEntity(projectSaveDto);
+            project.setCreator(creator);
+            project.setStatus(ProjectStatus.PENDIENTE);
+            Project savedProject = projectRepository.save(project);
+
+            assignCuratorIfAvailable(savedProject);
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("projectName", savedProject.getName());
+            metadata.put("budget", savedProject.getBudgets());
+            metadata.put("status", savedProject.getStatus().name());
+            
+            auditHelper.logComplete(
+                ProjectActionType.PROJECT_CREATED.name(),
+                "Proyecto '" + savedProject.getName() + "' creado con ID " + savedProject.getId(),
+                EntityType.PROJECT,
+                savedProject.getId(),
+                ActionResult.SUCCESS,
+                metadata
+            );
+
+            return attachReview(projectMapper.toDto(savedProject));
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                ProjectActionType.PROJECT_CREATED.name(),
+                "Intento fallido de crear proyecto",
+                e.getMessage()
+            );
+            throw e;
         }
-    
-        if (projectSaveDto.endAt().isBefore(projectSaveDto.startAt())) {
-            throw new IllegalArgumentException("End date must be after the start date");
-        }
-        
-        User creator = userRepository.findById(creatorId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", creatorId));
-        boolean isLeader = creator.getRoles() != null && creator.getRoles().stream()
-                .anyMatch(r -> "LIDER_COMUNITARIO".equalsIgnoreCase(r.getName()));
-        if (!isLeader) {
-            throw new BadRequestException("Solo un LIDER_COMUNITARIO puede crear proyectos");
-        }
-        
-        Project project = projectMapper.toEntity(projectSaveDto);
-        project.setCreator(creator);
-        project.setStatus(ProjectStatus.PENDIENTE);
-
-        Project savedProject = projectRepository.save(project);
-
-        
-        List<User> potentialCurators = userRepository.findByRoles_NameIgnoreCase("CURATOR");
-        potentialCurators.removeIf(u -> Objects.equals(u.getId(), creator.getId()));
-
-        if (!potentialCurators.isEmpty()) {
-            User chosenCurator = potentialCurators.stream()
-                .min(Comparator.comparingLong(u -> reviewRepository.countByCuratorIdAndReviewedAtIsNull(u.getId())))
-                .orElse(null);
-
-            if (chosenCurator != null) {
-                Review review = Review.builder()
-                    .project(savedProject)
-                    .curator(chosenCurator)
-                    .dueAt(LocalDateTime.now().plusDays(7))
-                    .build();
-                reviewRepository.save(review);
-                logAction(chosenCurator.getId(), ProjectActionType.CURATOR_ASSIGNED, "Curator asignado al proyecto " + savedProject.getId(), accessId);
-            }
-        }
-
-        logAction(creator.getId(), ProjectActionType.PROJECT_CREATED, "Proyecto creado con id " + savedProject.getId(), accessId);
-
-        return attachReview(projectMapper.toDto(savedProject));
     }
 
     @Override
-public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
-    Project existingProject = projectRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
-    
+    public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
+        try {
+            Project existingProject = findProjectById(id);
+            validateProjectOwnership(existingProject, creatorId);
+            validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
 
-    if (!Objects.equals(existingProject.getCreator().getId(), creatorId)) {
-        throw new AccessDeniedException("Solo el creador del proyecto puede editarlo");
-    }
-    
-   
-    if (projectSaveDto.startAt() != null && projectSaveDto.endAt() != null) {
-        if (projectSaveDto.endAt().isBefore(projectSaveDto.startAt())) {
-            throw new IllegalArgumentException("La fecha de fin debe ser posterior a la fecha de inicio");
+            String oldName = existingProject.getName();
+            ProjectStatus oldStatus = existingProject.getStatus();
+            
+            updateProjectFields(existingProject, projectSaveDto);
+            Project updatedProject = projectRepository.save(existingProject);
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("oldName", oldName);
+            metadata.put("newName", updatedProject.getName());
+            metadata.put("oldStatus", oldStatus.name());
+            metadata.put("newStatus", updatedProject.getStatus().name());
+            
+            auditHelper.logComplete(
+                ProjectActionType.PROJECT_UPDATED.name(),
+                "Proyecto '" + oldName + "' actualizado a '" + updatedProject.getName() + "'",
+                EntityType.PROJECT,
+                id,
+                ActionResult.SUCCESS,
+                metadata
+            );
+
+            return attachReview(projectMapper.toDto(updatedProject));
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                ProjectActionType.PROJECT_UPDATED.name(),
+                "Error al actualizar proyecto " + id,
+                e.getMessage()
+            );
+            throw e;
         }
     }
-    
-    
-    existingProject.setName(projectSaveDto.name());
-    existingProject.setObjectives(projectSaveDto.objectives());
-    existingProject.setBeneficiaryPopulations(projectSaveDto.beneficiaryPopulations());
-    existingProject.setBudgets(projectSaveDto.budgets());
-    existingProject.setStartAt(projectSaveDto.startAt());
-    existingProject.setEndAt(projectSaveDto.endAt());
-    
-    Project updatedProject = projectRepository.save(existingProject);
-    
-        logAction(creatorId, ProjectActionType.PROJECT_UPDATED, "Proyecto actualizado con id " + id, accessId);
-    
-    return attachReview(projectMapper.toDto(updatedProject));
-}
 
     @Override
     public void deleteProject(Long id) {
@@ -210,43 +210,86 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
 
     @Override
     public ProjectDto addObservations(Long projectId, Long curatorId, String notes, Long accessId) {
-        Project project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
-        List<Review> reviews = reviewRepository.findByProjectId(projectId);
-        if (reviews.isEmpty()) {
-            throw new ResourceNotFoundException("Review", "projectId", projectId);
+        try {
+            Project project = findProjectById(projectId);
+            Review review = getProjectReview(projectId);
+            validateCuratorAccess(review, curatorId);
+
+            review.setNotes(notes);
+            review.setReviewedAt(LocalDateTime.now());
+            reviewRepository.save(review);
+            
+            ProjectStatus oldStatus = project.getStatus();
+            project.setStatus(ProjectStatus.OBSERVACIONES);
+            projectRepository.save(project);
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("projectId", projectId);
+            metadata.put("oldStatus", oldStatus.name());
+            metadata.put("newStatus", ProjectStatus.OBSERVACIONES.name());
+            metadata.put("notesLength", notes != null ? notes.length() : 0);
+
+            auditHelper.logComplete(
+                ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
+                "Observaciones agregadas al proyecto '" + project.getName() + "'",
+                EntityType.PROJECT,
+                projectId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+
+            return attachReview(projectMapper.toDto(project));
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
+                "Error al agregar observaciones al proyecto " + projectId,
+                e.getMessage()
+            );
+            throw e;
         }
-        Review review = reviews.get(0);
-        if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
-            throw new AccessDeniedException("Solo el curador asignado puede registrar observaciones");
-        }
-        review.setNotes(notes);
-        review.setReviewedAt(LocalDateTime.now());
-        reviewRepository.save(review);
-        project.setStatus(ProjectStatus.OBSERVACIONES);
-        projectRepository.save(project);
-        logAction(curatorId, ProjectActionType.PROJECT_OBSERVATIONS_ADDED, "Observaciones registradas para proyecto " + projectId, accessId);
-        return attachReview(projectMapper.toDto(project));
     }
 
     @Override
     public ProjectDto approveProject(Long projectId, Long curatorId, Long accessId) {
-        Project project = projectRepository.findById(projectId)
-            .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
-        List<Review> reviews = reviewRepository.findByProjectId(projectId);
-        if (reviews.isEmpty()) {
-            throw new ResourceNotFoundException("Review", "projectId", projectId);
+        try {
+            Project project = findProjectById(projectId);
+            Review review = getProjectReview(projectId);
+            validateCuratorAccess(review, curatorId);
+
+            review.setReviewedAt(LocalDateTime.now());
+            reviewRepository.save(review);
+            
+            ProjectStatus oldStatus = project.getStatus();
+            project.setStatus(ProjectStatus.LISTO_PARA_PUBLICAR);
+            projectRepository.save(project);
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("projectName", project.getName());
+            metadata.put("oldStatus", oldStatus.name());
+            metadata.put("newStatus", ProjectStatus.LISTO_PARA_PUBLICAR.name());
+            metadata.put("reviewDuration", 
+                java.time.Duration.between(review.getStartAt(), LocalDateTime.now()).toDays());
+
+            auditHelper.logComplete(
+                ProjectActionType.PROJECT_APPROVED.name(),
+                "Proyecto '" + project.getName() + "' aprobado y listo para publicar",
+                EntityType.PROJECT,
+                projectId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+
+            return attachReview(projectMapper.toDto(project));
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                ProjectActionType.PROJECT_APPROVED.name(),
+                "Error al aprobar proyecto " + projectId,
+                e.getMessage()
+            );
+            throw e;
         }
-        Review review = reviews.get(0);
-        if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
-            throw new AccessDeniedException("Solo el curador asignado puede aprobar");
-        }
-        review.setReviewedAt(LocalDateTime.now());
-        reviewRepository.save(review);
-        project.setStatus(ProjectStatus.LISTO_PARA_PUBLICAR);
-        projectRepository.save(project);
-        logAction(curatorId, ProjectActionType.PROJECT_APPROVED, "Proyecto " + projectId + " aprobado (listo para publicar)", accessId);
-        return attachReview(projectMapper.toDto(project));
     }
 
     @Override
@@ -272,56 +315,158 @@ public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long cre
     
     @Override
     public ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId, Long accessId) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+        try {
+            Project project = findProjectById(projectId);
+            User newCurator = findUserById(curatorId);
+            
+            validateUserIsCurator(newCurator);
+            validateCuratorNotCreator(newCurator, project.getCreator());
 
-        User newCurator = userRepository.findById(curatorId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", curatorId));
+            List<Review> reviews = reviewRepository.findByProjectId(projectId);
+            Review review = getOrCreateReview(reviews, project, newCurator);
+            
+            User oldCurator = review.getCurator();
+            review.setCurator(newCurator);
+            reviewRepository.save(review);
 
-        boolean isCurator = newCurator.getRoles() != null && newCurator.getRoles().stream()
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("projectName", project.getName());
+            metadata.put("oldCuratorId", oldCurator != null ? oldCurator.getId() : null);
+            metadata.put("oldCuratorName", oldCurator != null ? oldCurator.getName() : "ninguno");
+            metadata.put("newCuratorId", newCurator.getId());
+            metadata.put("newCuratorName", newCurator.getName());
+
+            auditHelper.logComplete(
+                ProjectActionType.CURATOR_REASSIGNED.name(),
+                String.format("Curador reasignado en proyecto '%s': %s → %s",
+                    project.getName(),
+                    oldCurator != null ? oldCurator.getName() : "ninguno",
+                    newCurator.getName()),
+                EntityType.PROJECT,
+                projectId,
+                ActionResult.SUCCESS,
+                metadata
+            );
+
+            return projectMapper.toDto(project);
+            
+        } catch (Exception e) {
+            auditHelper.logFailure(
+                ProjectActionType.CURATOR_REASSIGNED.name(),
+                "Error al reasignar curador al proyecto " + projectId,
+                e.getMessage()
+            );
+            throw e;
+        }
+    }
+
+    private void validateProjectDates(LocalDateTime startAt, LocalDateTime endAt) {
+        if (startAt == null || endAt == null) {
+            throw new IllegalArgumentException("Las fechas de inicio y fin son obligatorias");
+        }
+        if (endAt.isBefore(startAt)) {
+            throw new IllegalArgumentException("La fecha de fin debe ser posterior a la de inicio");
+        }
+    }
+
+    private void validateUserIsLeader(User user) {
+        boolean isLeader = user.getRoles() != null && user.getRoles().stream()
+                .anyMatch(r -> "LIDER_COMUNITARIO".equalsIgnoreCase(r.getName()));
+        if (!isLeader) {
+            throw new BadRequestException("Solo un LIDER_COMUNITARIO puede crear proyectos");
+        }
+    }
+
+    private void validateUserIsCurator(User user) {
+        boolean isCurator = user.getRoles() != null && user.getRoles().stream()
                 .anyMatch(r -> "CURATOR".equalsIgnoreCase(r.getName()));
         if (!isCurator) {
             throw new IllegalArgumentException("El usuario no tiene rol CURATOR");
         }
-        if (Objects.equals(newCurator.getId(), project.getCreator().getId())) {
-            throw new IllegalArgumentException("El creador no puede ser curador de su propio proyecto");
-        }
-
-       
-        List<Review> reviews = reviewRepository.findByProjectId(projectId);
-        Review review;
-        if (reviews.isEmpty()) {
-            review = Review.builder()
-                    .project(project)
-                    .curator(newCurator)
-                    .dueAt(LocalDateTime.now().plusDays(7))
-                    .build();
-        } else {
-            review = reviews.get(0);
-            review.setCurator(newCurator);
-        }
-        reviewRepository.save(review);
-        logAction(adminId, ProjectActionType.CURATOR_REASSIGNED, "Curador reasignado a proyecto " + projectId + " -> usuario " + curatorId, accessId);
-        return projectMapper.toDto(project);
     }
 
-   
-        private void logAction(Long userId, ProjectActionType actionType, String description, Long accessId) {
-            if (userId == null) return;
-            User user = userRepository.findById(userId).orElse(null);
-            if (user == null) return;
-            if (accessId == null) return;
-            Access access = accessService.findById(accessId);
-            if (access == null) return;
-        
-
-            Action action = Action.builder()
-                .name(actionType.name())
-                .description(description)
-                .user(user)
-                .access(access)
-                .build();
-
-            actionRepository.save(action);
+    private void validateCuratorNotCreator(User curator, User creator) {
+        if (Objects.equals(curator.getId(), creator.getId())) {
+            throw new IllegalArgumentException("El creador no puede ser curador de su propio proyecto");
         }
+    }
+
+    private void validateProjectOwnership(Project project, Long userId) {
+        if (!Objects.equals(project.getCreator().getId(), userId)) {
+            throw new AccessDeniedException("Solo el creador del proyecto puede editarlo");
+        }
+    }
+
+    private void validateCuratorAccess(Review review, Long curatorId) {
+        if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
+            throw new AccessDeniedException("Solo el curador asignado puede realizar esta acción");
+        }
+    }
+
+    private User findUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    private Project findProjectById(Long projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", projectId));
+    }
+
+    private Review getProjectReview(Long projectId) {
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        if (reviews.isEmpty()) {
+            throw new ResourceNotFoundException("Review", "projectId", projectId);
+        }
+        return reviews.get(0);
+    }
+
+    private Review getOrCreateReview(List<Review> reviews, Project project, User curator) {
+        if (reviews.isEmpty()) {
+            return Review.builder()
+                    .project(project)
+                    .curator(curator)
+                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .build();
+        }
+        return reviews.get(0);
+    }
+
+    private void updateProjectFields(Project project, ProjectSaveDto dto) {
+        project.setName(dto.name());
+        project.setObjectives(dto.objectives());
+        project.setBeneficiaryPopulations(dto.beneficiaryPopulations());
+        project.setBudgets(dto.budgets());
+        project.setStartAt(dto.startAt());
+        project.setEndAt(dto.endAt());
+    }
+
+    private void assignCuratorIfAvailable(Project project) {
+        List<User> potentialCurators = userRepository.findByRoles_NameIgnoreCase("CURATOR");
+        potentialCurators.removeIf(u -> Objects.equals(u.getId(), project.getCreator().getId()));
+
+        if (!potentialCurators.isEmpty()) {
+            User chosenCurator = potentialCurators.stream()
+                .min(Comparator.comparingLong(u -> 
+                    reviewRepository.countByCuratorIdAndReviewedAtIsNull(u.getId())))
+                .orElse(null);
+
+            if (chosenCurator != null) {
+                Review review = Review.builder()
+                    .project(project)
+                    .curator(chosenCurator)
+                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .build();
+                reviewRepository.save(review);
+                
+                auditHelper.logEntity(
+                    ProjectActionType.CURATOR_ASSIGNED.name(),
+                    "Curador " + chosenCurator.getName() + " asignado automáticamente al proyecto " + project.getName(),
+                    EntityType.PROJECT,
+                    project.getId()
+                );
+            }
+        }
+    }
+
 }

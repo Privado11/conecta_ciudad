@@ -86,30 +86,19 @@ public class MenuService {
     private List<MenuItemDto> createAdminMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
         
-        List<MenuItemDto> userMgmt = List.of(
-            new MenuItemDto("Todos los Usuarios", "/admin/users", "Users"),
-            new MenuItemDto("Roles y Permisos", "/admin/roles", "Shield"),
-            new MenuItemDto("Actividad Reciente", "/admin/activity", "Activity")
-        );
-        menu.add(new MenuItemDto("Gestión de Usuarios", "#", "Users", userMgmt));
+        menu.add(new MenuItemDto("Gestión de Usuarios", "/admin/users", "Users"));
         
-        List<MenuItemDto> projectMgmt = List.of(
-            new MenuItemDto("Todos los Proyectos", "/admin/projects", "FolderKanban"),
-            new MenuItemDto("Estados", "/admin/projects/status", "ListChecks")
-        );
-        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projectMgmt));
+        menu.add(new MenuItemDto("Proyectos", "/admin/projects", "FolderKanban"));
         
-        List<MenuItemDto> voting = List.of(
-            new MenuItemDto("Procesos Activos", "/admin/voting/active", "Vote"),
-            new MenuItemDto("Auditoría", "/admin/voting/audit", "ShieldCheck")
-        );
-        menu.add(new MenuItemDto("Votaciones", "#", "Vote", voting));
+        menu.add(new MenuItemDto("Votaciones", "/admin/voting/active", "Vote"));
         
         List<MenuItemDto> comms = List.of(
             new MenuItemDto("Envío Masivo", "/admin/notifications", "Send"),
             new MenuItemDto("Historial", "/admin/communications/history", "History")
         );
         menu.add(new MenuItemDto("Comunicaciones", "#", "MessageSquare", comms));
+
+        menu.add(new MenuItemDto("Auditoría", "/admin/audit", "ShieldCheck"));
         
         List<MenuItemDto> config = List.of(
             new MenuItemDto("Seguridad", "/admin/config/security", "Lock")

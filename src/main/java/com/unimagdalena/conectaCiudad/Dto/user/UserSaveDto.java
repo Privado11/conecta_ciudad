@@ -4,9 +4,11 @@ import java.util.List;
 
 import com.unimagdalena.conectaCiudad.validation.OnCreate;
 import com.unimagdalena.conectaCiudad.validation.OnUpdate;
+import com.unimagdalena.conectaCiudad.validation.OnUpdatedUSerForAdmin;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -31,5 +33,9 @@ public record UserSaveDto(
     @Pattern(groups = {OnCreate.class, OnUpdate.class}, regexp = "^[0-9]+$", message = "El número de teléfono solo debe contener números.")
     String phone,
 
+    @NotNull(groups = {OnUpdatedUSerForAdmin.class}, message = "El estado es obligatorio.")
+    Boolean active,
+
+    @NotNull(groups = {OnUpdatedUSerForAdmin.class}, message = "El rol es obligatorio.")
     List<String> roles
 ) {}
