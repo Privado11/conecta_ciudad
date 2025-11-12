@@ -215,19 +215,38 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
                 "WL-Proxy-Client-IP", "HTTP_X_FORWARDED_FOR"
         };
-
+    
         for (String header : headers) {
             String ip = request.getHeader(header);
             if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
                 if (ip.contains(",")) {
                     ip = ip.split(",")[0].trim();
                 }
+                ip = sanitizeIp(ip);
                 return ip;
             }
         }
-        return request.getRemoteAddr();
+        
+        String remoteAddr = request.getRemoteAddr();
+        return sanitizeIp(remoteAddr);
     }
-
+    
+    private String sanitizeIp(String ip) {
+        if (ip == null) return null;
+        
+        ip = ip.trim();
+        
+        if (ip.startsWith("[") && ip.contains("]")) {
+            int closing = ip.indexOf("]");
+            return ip.substring(1, closing);
+        }
+        
+        if (ip.contains(":") && ip.chars().filter(ch -> ch == '.').count() == 3) {
+            return ip.substring(0, ip.indexOf(":"));
+        }
+        
+        return ip;
+    }
     private String getLocationFromIp(String ipAddress) {
         if (ipAddress == null ||
             ipAddress.equals("127.0.0.1") ||

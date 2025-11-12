@@ -297,16 +297,18 @@ public class ActionServiceImpl implements ActionService {
 
     private String sanitizeIp(String ip) {
         if (ip == null) return null;
+        
+        ip = ip.trim();
+        
         if (ip.startsWith("[") && ip.contains("]")) {
             int closing = ip.indexOf("]");
-            if (closing != -1 && ip.length() > closing + 1 && ip.charAt(closing + 1) == ':') {
-                return ip.substring(1, closing);
-            }
-            return ip.substring(1, ip.indexOf("]"));
+            return ip.substring(1, closing);
         }
+        
         if (ip.contains(":") && ip.chars().filter(ch -> ch == '.').count() == 3) {
             return ip.substring(0, ip.indexOf(":"));
         }
+        
         return ip;
     }
 
