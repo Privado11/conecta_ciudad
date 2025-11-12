@@ -185,7 +185,7 @@ public class ActionServiceImpl implements ActionService {
     public Map<String, Object> getActionDetails(Long actionId) {
         Action action = actionRepository.findById(actionId)
             .orElseThrow(() -> new ResourceNotFoundException("Action", "id", actionId));
-
+    
         Map<String, Object> details = new LinkedHashMap<>();
         details.put("id", action.getId());
         details.put("actionType", action.getActionType());
@@ -199,7 +199,7 @@ public class ActionServiceImpl implements ActionService {
             "name", action.getUser().getName(),
             "email", action.getUser().getEmail()
         ) : null);
-
+    
         Map<String, Object> metadata = null;
         if (action.getMetadata() != null) {
             try {
@@ -209,39 +209,44 @@ public class ActionServiceImpl implements ActionService {
                 details.put("metadata", Map.of("error", "No se pudo leer metadata"));
             }
         }
-
-        switch (action.getEntityType()) {
-            case PROJECT -> projectRepository.findById(action.getEntityId()).ifPresent(project -> {
-                Map<String, Object> projectData = new LinkedHashMap<>();
-                projectData.put("id", project.getId());
-                projectData.put("name", project.getName());
-                projectData.put("status", project.getStatus().name());
-                projectData.put("creator", project.getCreator().getName());
-                projectData.put("budgets", project.getBudgets());
-                projectData.put("startAt", project.getStartAt());
-                projectData.put("endAt", project.getEndAt());
-                details.put("entityData", projectData);
-            });
-            case USER -> userRepository.findById(action.getEntityId()).ifPresent(user -> {
-                Map<String, Object> userData = new LinkedHashMap<>();
-                userData.put("id", user.getId());
-                userData.put("name", user.getName());
-                userData.put("email", user.getEmail());
-                userData.put("roles", user.getRoles().stream().map(Role::getName).toList());
-                userData.put("active", user.getActive());
-                details.put("entityData", userData);
-            });
-            case ACCESS -> accessRepository.findById(action.getEntityId()).ifPresent(access -> {
-                Map<String, Object> accessData = new LinkedHashMap<>();
-                accessData.put("ipAddress", access.getIpAddress());
-                accessData.put("location", access.getLocation());
-                accessData.put("userAgent", access.getUserAgent());
-                accessData.put("accessAt", access.getAccessAt());
-                details.put("entityData", accessData);
-            });
-            default -> details.put("entityData", Map.of("info", "Sin datos adicionales"));
+    
+        if (action.getEntityId() == null) {
+            log.warn("La acción {} (ID={}) no tiene entidad asociada.", action.getActionType(), action.getId());
+            details.put("entityData", Map.of("info", "Esta acción no tiene entidad asociada"));
+        } else {
+            switch (action.getEntityType()) {
+                case PROJECT -> projectRepository.findById(action.getEntityId()).ifPresent(project -> {
+                    Map<String, Object> projectData = new LinkedHashMap<>();
+                    projectData.put("id", project.getId());
+                    projectData.put("name", project.getName());
+                    projectData.put("status", project.getStatus().name());
+                    projectData.put("creator", project.getCreator().getName());
+                    projectData.put("budgets", project.getBudgets());
+                    projectData.put("startAt", project.getStartAt());
+                    projectData.put("endAt", project.getEndAt());
+                    details.put("entityData", projectData);
+                });
+                case USER -> userRepository.findById(action.getEntityId()).ifPresent(user -> {
+                    Map<String, Object> userData = new LinkedHashMap<>();
+                    userData.put("id", user.getId());
+                    userData.put("name", user.getName());
+                    userData.put("email", user.getEmail());
+                    userData.put("roles", user.getRoles().stream().map(Role::getName).toList());
+                    userData.put("active", user.getActive());
+                    details.put("entityData", userData);
+                });
+                case ACCESS -> accessRepository.findById(action.getEntityId()).ifPresent(access -> {
+                    Map<String, Object> accessData = new LinkedHashMap<>();
+                    accessData.put("ipAddress", access.getIpAddress());
+                    accessData.put("location", access.getLocation());
+                    accessData.put("userAgent", access.getUserAgent());
+                    accessData.put("accessAt", access.getAccessAt());
+                    details.put("entityData", accessData);
+                });
+                default -> details.put("entityData", Map.of("info", "Sin datos adicionales"));
+            }
         }
-
+    
         if (metadata != null) {
             Map<String, Object> changes = new LinkedHashMap<>();
             metadata.forEach((k, v) -> {
@@ -251,9 +256,10 @@ public class ActionServiceImpl implements ActionService {
             });
             if (!changes.isEmpty()) details.put("changes", changes);
         }
-
+    
         return details;
     }
+    
 
     private void enrichActionWithRequestData(Action action) {
         try {
