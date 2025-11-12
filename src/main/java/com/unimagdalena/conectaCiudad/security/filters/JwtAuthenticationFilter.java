@@ -93,6 +93,10 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         String userAgent = request.getHeader("User-Agent");
         String location = getLocationFromIp(ipAddress);
 
+        if (location == null) {
+            location = "Desconocido";
+        }
+
         AccessDto accessDto = accessService.save(
                 new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
         );
@@ -101,13 +105,15 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         metadata.put("ipAddress", ipAddress);
         metadata.put("location", location);
         metadata.put("userAgent", userAgent);
+        metadata.put("userId", userEntity.getId()); 
+        metadata.put("userEmail", userEntity.getEmail());
 
         try {
             auditHelper.logCompleteWithAccess(
                 UserActionType.USER_LOGIN.name(),
                 "Inicio de sesión exitoso",
-                EntityType.USER,
-                userEntity.getId(),
+                EntityType.ACCESS,
+                access.getId(),
                 ActionResult.SUCCESS,
                 metadata,
                 access  
@@ -182,6 +188,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 metadata.put("ipAddress", ipAddress);
                 metadata.put("userAgent", userAgent);
                 metadata.put("reason", failed.getMessage());
+                metadata.put("userId", userEntity.getId());
+                metadata.put("userEmail", userEntity.getEmail());
 
                 Access failedAccess = accessMapper.toEntity(
                         accessService.save(new AccessSaveDto(userEntity, ipAddress, userAgent, null, false))
@@ -190,8 +198,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 auditHelper.logCompleteWithAccess(
                         UserActionType.USER_LOGIN_FAILED.name(),
                         "Intento de inicio de sesión fallido",
-                        EntityType.USER,
-                        userEntity.getId(),
+                        EntityType.ACCESS,
+                        failedAccess.getId(),
                         ActionResult.FAILED,
                         metadata,
                         failedAccess
@@ -221,17 +229,21 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     }
 
     private String getLocationFromIp(String ipAddress) {
-        if (ipAddress == null || ipAddress.equals("127.0.0.1") ||
-            ipAddress.equals("::1") || ipAddress.startsWith("192.168.") ||
-            ipAddress.startsWith("10.") || ipAddress.startsWith("172.")) {
+        if (ipAddress == null ||
+            ipAddress.equals("127.0.0.1") ||
+            ipAddress.equals("::1") ||
+            ipAddress.equals("0:0:0:0:0:0:0:1") ||  
+            ipAddress.startsWith("192.168.") ||
+            ipAddress.startsWith("10.") ||
+            ipAddress.startsWith("172.")) {
             return "Local";
         }
-
+    
         try {
             String apiUrl = "http://ip-api.com/json/" + ipAddress;
             RestTemplate restTemplate = new RestTemplate();
             String response = restTemplate.getForObject(apiUrl, String.class);
-
+    
             JsonNode json = objectMapper.readTree(response);
             if ("success".equals(json.get("status").asText())) {
                 String city = json.get("city").asText();
@@ -242,4 +254,5 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         }
         return null;
     }
+    
 }

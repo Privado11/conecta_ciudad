@@ -1,6 +1,7 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -16,6 +17,7 @@ import com.unimagdalena.conectaCiudad.enums.EntityType;
 import com.unimagdalena.conectaCiudad.services.action.ActionService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
@@ -24,7 +26,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Tag(
     name = "Auditoría y Trazabilidad",
-    description = "API para consultar acciones y estadísticas de auditoría del sistema."
+    description = "API unificada para consultar acciones, filtros y estadísticas del sistema."
 )
 public class AuditController {
 
@@ -32,88 +34,85 @@ public class AuditController {
     private static final int MAX_PAGE_SIZE = 100;
 
     @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping
-    @Operation(summary = "Obtener todas las acciones con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getAllActions(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+    @GetMapping("/search")
+    @Operation(
+        summary = "Búsqueda avanzada de acciones de auditoría",
+        description = """
+            Permite filtrar las acciones del sistema con múltiples criterios combinados:
+            - tipo de acción (`actionType`)
+            - resultado (`SUCCESS` o `FAILED`)
+            - tipo de entidad (`entityType`)
+            - término de búsqueda (`searchTerm`)
+            - rango de fechas (`startDate`, `endDate`)
+            Incluye paginación y estadísticas agregadas.
+            """
+    )
+    public ResponseEntity<PagedResponse<ActionDto>> searchActions(
+        @Parameter(description = "Tipo de acción (por ejemplo, USER_CREATED, PROJECT_UPDATED)")
+        @RequestParam(required = false) String actionType,
 
-        size = Math.min(size, MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(page, size);
-        LocalDateTime start = LocalDateTime.of(2000, 1, 1, 0, 0);
-        LocalDateTime end = LocalDateTime.now().plusDays(1);
+        @Parameter(description = "Resultado de la acción (SUCCESS o FAILED)")
+        @RequestParam(required = false) ActionResult result,
 
-        return ResponseEntity.ok(actionService.findByDateRange(start, end, pageable));
-    }
+        @Parameter(description = "Tipo de entidad afectada (USER, PROJECT, ROLE, ACCESS, etc.)")
+        @RequestParam(required = false) EntityType entityType,
 
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping("/user/{userId}")
-    @Operation(summary = "Obtener acciones de un usuario con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getActionsByUser(
-            @PathVariable Long userId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+        @Parameter(description = "Término de búsqueda (en nombre, email o descripción)")
+        @RequestParam(required = false) String searchTerm,
 
-        size = Math.min(size, MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(actionService.findByUserId(userId, pageable));
-    }
+        @Parameter(description = "Fecha de inicio del rango (formato ISO: yyyy-MM-dd'T'HH:mm:ss)")
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        LocalDateTime startDate,
 
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping("/entity/{entityType}/{entityId}")
-    @Operation(summary = "Obtener historial de una entidad con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getActionsByEntity(
-            @PathVariable EntityType entityType,
-            @PathVariable Long entityId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+        @Parameter(description = "Fecha de fin del rango (formato ISO: yyyy-MM-dd'T'HH:mm:ss)")
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+        LocalDateTime endDate,
 
-        size = Math.min(size, MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(actionService.findByEntityTypeAndId(entityType, entityId, pageable));
-    }
+        @Parameter(description = "Número de página (inicia en 0)")
+        @RequestParam(defaultValue = "0") int page,
 
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping("/type/{actionType}")
-    @Operation(summary = "Filtrar acciones por tipo con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getActionsByType(
-            @PathVariable String actionType,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-
-        size = Math.min(size, MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(actionService.findByActionType(actionType, pageable));
-    }
-
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping("/result/{result}")
-    @Operation(summary = "Filtrar acciones por resultado con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getActionsByResult(
-            @PathVariable ActionResult result,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-
-        size = Math.min(size, MAX_PAGE_SIZE);
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(actionService.findByResult(result, pageable));
-    }
-
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @GetMapping("/date-range")
-    @Operation(summary = "Filtrar acciones por rango de fechas con estadísticas")
-    public ResponseEntity<PagedResponse<ActionDto>> getActionsByDateRange(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-
-        if (endDate.isBefore(startDate)) {
+        @Parameter(description = "Tamaño de página (máximo 100)")
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate)) {
             throw new IllegalArgumentException("La fecha de fin debe ser posterior a la fecha de inicio");
         }
 
         size = Math.min(size, MAX_PAGE_SIZE);
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(actionService.findByDateRange(startDate, endDate, pageable));
+
+        PagedResponse<ActionDto> response = actionService.searchWithFilters(
+            actionType,
+            result,
+            entityType,
+            searchTerm,
+            startDate,
+            endDate,
+            pageable
+        );
+
+        return ResponseEntity.ok(response);
+    }
+
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @GetMapping("/{id}/details")
+    @Operation(
+        summary = "Obtener detalles completos de una acción de auditoría",
+        description = """
+            Devuelve información enriquecida de una acción específica,
+            incluyendo:
+            - datos básicos (tipo, descripción, resultado, usuario, IP, fecha)
+            - entidad afectada (USER, PROJECT, etc.)
+            - metadatos registrados
+            - cambios (valores antiguos/nuevos)
+            """
+    )
+    public ResponseEntity<Map<String, Object>> getActionDetails(
+        @Parameter(description = "ID de la acción de auditoría") @PathVariable Long id
+    ) {
+        Map<String, Object> details = actionService.getActionDetails(id);
+        return ResponseEntity.ok(details);
     }
 }

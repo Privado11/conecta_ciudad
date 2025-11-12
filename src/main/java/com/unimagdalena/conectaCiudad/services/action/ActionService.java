@@ -9,6 +9,8 @@ import com.unimagdalena.conectaCiudad.enums.EntityType;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+
 public interface ActionService {
     
     ActionDto save(ActionSaveDto actionSaveDto);
@@ -16,17 +18,18 @@ public interface ActionService {
     void logAction(String actionType, String description, User user, Access access);
     
     ActionDto logActionWithDetails(ActionLogRequest request);
-    
-    LocalDateTime getLastActionDateByUserId(Long userId);
-    
-    PagedResponse<ActionDto> findByUserId(Long userId, Pageable pageable);
-    
-    PagedResponse<ActionDto> findByEntityTypeAndId(EntityType entityType, Long entityId, Pageable pageable);
-    
-    PagedResponse<ActionDto> findByActionType(String actionType, Pageable pageable);
-    
-    PagedResponse<ActionDto> findByDateRange(LocalDateTime start, LocalDateTime end, Pageable pageable);
-    
-    PagedResponse<ActionDto> findByResult(ActionResult result, Pageable pageable);
 
+    LocalDateTime getLastActionDateByUserId(Long userId);
+
+    PagedResponse<ActionDto> searchWithFilters(
+        String actionType, 
+        ActionResult result, 
+        EntityType entityType, 
+        String searchTerm,
+        LocalDateTime startDate,
+        LocalDateTime endDate,
+        Pageable pageable
+    );
+
+    Map<String, Object> getActionDetails(Long actionId);
 }

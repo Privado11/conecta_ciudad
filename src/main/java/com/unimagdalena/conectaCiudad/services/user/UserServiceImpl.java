@@ -273,6 +273,9 @@ public class UserServiceImpl implements UserService {
             metadata.put("userName", user.getName());
             metadata.put("oldRole", oldRole);
             metadata.put("newRole", role.getName());
+            metadata.put("userId", userId);
+            metadata.put("userEmail", user.getEmail());
+            
             
             auditHelper.logComplete(
                 UserActionType.USER_ROLE_ADDED.name(),
@@ -301,6 +304,7 @@ public class UserServiceImpl implements UserService {
         try {
             User user = findUserById(userId);
             String normalizedRole = validateAndNormalizeRole(roleName);
+            Role role = findRoleByName(normalizedRole);
             
             List<Role> roles = new ArrayList<>(user.getRoles());
             roles.removeIf(r -> r.getName().equalsIgnoreCase(normalizedRole));
@@ -318,7 +322,10 @@ public class UserServiceImpl implements UserService {
             metadata.put("userName", user.getName());
             metadata.put("removedRole", normalizedRole);
             metadata.put("assignedDefaultRole", roles.size() == 1 && roles.get(0).getName().equals(DEFAULT_ROLE));
-            
+            metadata.put("userId", userId);
+            metadata.put("userEmail", user.getEmail());
+
+
             auditHelper.logComplete(
                 UserActionType.USER_ROLE_REMOVED.name(),
                 "Rol '" + normalizedRole + "' removido del usuario '" + user.getName() + "'",

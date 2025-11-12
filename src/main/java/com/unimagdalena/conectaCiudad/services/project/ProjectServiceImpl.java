@@ -171,10 +171,41 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     public void deleteProject(Long id) {
-        Project project = projectRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
-        projectRepository.delete(project);
+        try {
+            Project project = projectRepository.findById(id)
+                    .orElseThrow(() -> new ResourceNotFoundException("Project", "id", id));
+    
+           
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("projectId", project.getId());
+            metadata.put("projectName", project.getName());
+            metadata.put("status", project.getStatus().name());
+            metadata.put("creatorId", project.getCreator() != null ? project.getCreator().getId() : null);
+    
+          
+            projectRepository.delete(project);
+    
+            
+            auditHelper.logComplete(
+                ProjectActionType.PROJECT_DELETED.name(),
+                "Proyecto '" + project.getName() + "' eliminado correctamente",
+                EntityType.PROJECT,
+                project.getId(),
+                ActionResult.SUCCESS,
+                metadata
+            );
+    
+        } catch (Exception e) {
+          
+            auditHelper.logFailure(
+                ProjectActionType.PROJECT_DELETED.name(),
+                "Error al eliminar proyecto con ID " + id,
+                e.getMessage()
+            );
+            throw e;
+        }
     }
+    
 
     private ProjectDto attachReview(ProjectDto dto) {
         if (dto == null || dto.id() == null) return dto;
@@ -232,8 +263,8 @@ public class ProjectServiceImpl implements ProjectService {
             auditHelper.logComplete(
                 ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
                 "Observaciones agregadas al proyecto '" + project.getName() + "'",
-                EntityType.PROJECT,
-                projectId,
+                EntityType.REVIEW,
+                review.getId(),
                 ActionResult.SUCCESS,
                 metadata
             );
@@ -331,6 +362,7 @@ public class ProjectServiceImpl implements ProjectService {
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("projectName", project.getName());
+            metadata.put("projectId", projectId);
             metadata.put("oldCuratorId", oldCurator != null ? oldCurator.getId() : null);
             metadata.put("oldCuratorName", oldCurator != null ? oldCurator.getName() : "ninguno");
             metadata.put("newCuratorId", newCurator.getId());
@@ -342,8 +374,8 @@ public class ProjectServiceImpl implements ProjectService {
                     project.getName(),
                     oldCurator != null ? oldCurator.getName() : "ninguno",
                     newCurator.getName()),
-                EntityType.PROJECT,
-                projectId,
+                EntityType.REVIEW,
+                review.getId(),
                 ActionResult.SUCCESS,
                 metadata
             );

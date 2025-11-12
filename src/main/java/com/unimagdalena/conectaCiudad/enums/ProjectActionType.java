@@ -4,6 +4,7 @@ public enum ProjectActionType {
     CURATOR_ASSIGNED("Asignación de curador"),
     PROJECT_CREATED("Creación de proyecto"),
     PROJECT_UPDATED("Actualización de proyecto"),
+    PROJECT_DELETED("Eliminación de proyecto"),
     PROJECT_OBSERVATIONS_ADDED("Adición de observaciones"),
     PROJECT_APPROVED("Aprobación de proyecto"),
     CURATOR_REASSIGNED("Reasignación de curador");
