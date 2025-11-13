@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.services.project;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -137,26 +138,64 @@ public class ProjectServiceImpl implements ProjectService {
             validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
 
             String oldName = existingProject.getName();
+            String oldObjectives = existingProject.getObjectives();
+            String oldBeneficiaryPopulations = existingProject.getBeneficiaryPopulations();
+            String oldBudgets = existingProject.getBudgets();
             ProjectStatus oldStatus = existingProject.getStatus();
+            LocalDateTime oldStartAt = existingProject.getStartAt();
+            LocalDateTime oldEndAt = existingProject.getEndAt();
             
             updateProjectFields(existingProject, projectSaveDto);
             Project updatedProject = projectRepository.save(existingProject);
-
+    
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("oldName", oldName);
-            metadata.put("newName", updatedProject.getName());
-            metadata.put("oldStatus", oldStatus.name());
-            metadata.put("newStatus", updatedProject.getStatus().name());
+            
+            if (!oldName.equals(updatedProject.getName())) {
+                metadata.put("oldName", oldName);
+                metadata.put("newName", updatedProject.getName());
+            }
+            
+            if (!Objects.equals(oldObjectives, updatedProject.getObjectives())) {
+                metadata.put("oldObjectives", oldObjectives != null ? oldObjectives : "sin valor");
+                metadata.put("newObjectives", updatedProject.getObjectives() != null ? updatedProject.getObjectives() : "sin valor");
+            }
+            
+            if (!Objects.equals(oldBeneficiaryPopulations, updatedProject.getBeneficiaryPopulations())) {
+                metadata.put("oldBeneficiaryPopulations", oldBeneficiaryPopulations != null ? oldBeneficiaryPopulations : "sin valor");
+                metadata.put("newBeneficiaryPopulations", updatedProject.getBeneficiaryPopulations() != null ? updatedProject.getBeneficiaryPopulations() : "sin valor");
+            }
+            
+            if (!Objects.equals(oldBudgets, updatedProject.getBudgets())) {
+                metadata.put("oldBudgets", oldBudgets != null ? oldBudgets : "sin valor");
+                metadata.put("newBudgets", updatedProject.getBudgets() != null ? updatedProject.getBudgets() : "sin valor");
+            }
+            
+            if (!oldStatus.equals(updatedProject.getStatus())) {
+                metadata.put("oldStatus", oldStatus.name());
+                metadata.put("newStatus", updatedProject.getStatus().name());
+            }
+            
+            if (!Objects.equals(oldStartAt, updatedProject.getStartAt())) {
+                metadata.put("oldStartAt", oldStartAt != null ? oldStartAt.toString() : "sin valor");
+                metadata.put("newStartAt", updatedProject.getStartAt() != null ? updatedProject.getStartAt().toString() : "sin valor");
+            }
+            
+            if (!Objects.equals(oldEndAt, updatedProject.getEndAt())) {
+                metadata.put("oldEndAt", oldEndAt != null ? oldEndAt.toString() : "sin valor");
+                metadata.put("newEndAt", updatedProject.getEndAt() != null ? updatedProject.getEndAt().toString() : "sin valor");
+            }
             
             auditHelper.logComplete(
                 ProjectActionType.PROJECT_UPDATED.name(),
-                "Proyecto '" + oldName + "' actualizado a '" + updatedProject.getName() + "'",
+                metadata.isEmpty() 
+                    ? "Proyecto '" + oldName + "' actualizado sin cambios efectivos"
+                    : "Proyecto '" + oldName + "' actualizado",
                 EntityType.PROJECT,
                 id,
                 ActionResult.SUCCESS,
                 metadata
             );
-
+    
             return attachReview(projectMapper.toDto(updatedProject));
             
         } catch (Exception e) {

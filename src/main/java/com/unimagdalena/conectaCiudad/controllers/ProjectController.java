@@ -37,7 +37,7 @@ public class ProjectController {
     private final ProjectService projectService;
 
 
-    @PreAuthorize("hasAuthority('LIDER_COMUNITARIO')")
+    @PreAuthorize("hasAuthority('PROJECT_CREATE')")
     @PostMapping
     @Operation(
         summary = "Crear nuevo proyecto comunitario",
@@ -154,6 +154,7 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.saveProject(projectSaveDto, creatorId, accessId));
     }
 
+
     @GetMapping("/{id}")
     @Operation(
         summary = "Consultar proyecto por su identificador único",
@@ -232,7 +233,7 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.findById(id));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+@PreAuthorize("hasAuthority('PROJECT_VIEW_ALL')")
 @GetMapping
 @Operation(
     summary = "Listar todos los proyectos del sistema (Solo ADMIN)",
@@ -422,7 +423,7 @@ public ResponseEntity<List<ProjectDto>> getAllProjects() {
     return ResponseEntity.ok(projectService.findAll());
 }
 
-@PreAuthorize("hasAuthority('LIDER_COMUNITARIO')")
+@PreAuthorize("hasAuthority('PROJECT_VIEW')")
 @GetMapping("/my-projects")
 @Operation(
     summary = "Listar mis proyectos creados (Solo LIDER_COMUNITARIO)",
@@ -597,7 +598,7 @@ public ResponseEntity<List<ProjectDto>> getMyProjects() {
     return ResponseEntity.ok(projectService.findByCreatorId(creatorId));
 }
 
-@PreAuthorize("hasAuthority('ADMIN')")
+@PreAuthorize("hasAuthority('PROJECT_SEARCH')")
 @GetMapping("/search")
 @Operation(
     summary = "Buscar proyectos por nombre en todo el sistema (Solo ADMIN)",
@@ -782,6 +783,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
     return ResponseEntity.ok(projectService.findByNameContainingIgnoreCase(name));
 }
 
+    @PreAuthorize("hasAuthority('PROJECT_UPDATE')")
     @PutMapping("/{id}")
     @Operation(
         summary = "Actualizar datos de un proyecto existente",
@@ -839,7 +841,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok(projectService.updateProject(id, projectDto, creatorId, accessId));
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('PROJECT_ASSIGN_CURATOR')")
     @PutMapping("/{id}/curator")
     @Operation(
         summary = "Asignar o reasignar curador a un proyecto",
@@ -905,7 +907,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok(projectService.reassignCurator(id, curatorId, adminId, accessId));
     }
 
-    @PreAuthorize("hasAuthority('CURATOR')")
+    @PreAuthorize("hasAuthority('PROJECT_ADD_OBSERVATIONS')")
     @PutMapping("/{id}/observations")
     @Operation(
         summary = "Agregar observaciones de revisión al proyecto",
@@ -969,7 +971,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok(projectService.addObservations(id, curatorId, body.notes(), accessId));
     }
 
-    @PreAuthorize("hasAuthority('CURATOR')")
+    @PreAuthorize("hasAuthority('PROJECT_APPROVE')")
     @PutMapping("/{id}/approve")
     @Operation(
         summary = "Aprobar proyecto tras completar la revisión",
@@ -1031,7 +1033,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok(projectService.approveProject(id, curatorId, accessId));
     }
 
-    @PreAuthorize("hasAuthority('CURATOR')")
+    @PreAuthorize("hasAuthority('PROJECT_VIEW_ASSIGNED')")
     @GetMapping("/my")
     @Operation(
         summary = "Listar proyectos asignados al curador autenticado",
@@ -1092,6 +1094,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok(projectService.findByCurator(curatorId, status));
     }
 
+    @PreAuthorize("hasAuthority('PROJECT_DELETE')")
     @DeleteMapping("/{id}")
     @Operation(
         summary = "Eliminar proyecto del sistema",
@@ -1144,6 +1147,7 @@ public ResponseEntity<List<ProjectDto>> searchProjectsByName(
         return ResponseEntity.ok("Project deleted successfully");
     }
 
+    @PreAuthorize("hasAuthority('PROJECT_VIEW_READY_TO_PUBLISH')")
     @GetMapping("/ready-to-publish")
     @Operation(
         summary = "Listar proyectos listos para publicar",

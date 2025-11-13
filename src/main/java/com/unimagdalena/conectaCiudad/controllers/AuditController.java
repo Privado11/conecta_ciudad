@@ -33,7 +33,7 @@ public class AuditController {
     private final ActionService actionService;
     private static final int MAX_PAGE_SIZE = 100;
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('AUDIT_VIEW')")
     @GetMapping("/search")
     @Operation(
         summary = "Búsqueda avanzada de acciones de auditoría",
@@ -96,7 +96,7 @@ public class AuditController {
         return ResponseEntity.ok(response);
     }
 
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('AUDIT_DETAIL_VIEW')")
     @GetMapping("/{id}/details")
     @Operation(
         summary = "Obtener detalles completos de una acción de auditoría",

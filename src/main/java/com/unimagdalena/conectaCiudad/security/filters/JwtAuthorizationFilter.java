@@ -1,14 +1,17 @@
 package com.unimagdalena.conectaCiudad.security.filters;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
 import io.jsonwebtoken.Claims;
@@ -17,9 +20,12 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 
 import static com.unimagdalena.conectaCiudad.security.TokenJwtConfig.*;
 
+
+@Slf4j
 public class JwtAuthorizationFilter extends OncePerRequestFilter {
 
     private final UserRepository userRepository;
@@ -42,7 +48,6 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         try {
             String token = header.replace(PREFIX_TOKEN, "").trim();
 
-           
             Claims claims = Jwts.parser()
                     .verifyWith(SECRET_KEY)
                     .build()
@@ -50,31 +55,61 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
                     .getPayload();
 
             String username = claims.getSubject();
-            Long id = claims.get("id", Long.class);
             Long accessId = claims.get("access_id", Long.class);
 
-            @SuppressWarnings("unchecked")
-            List<String> roles = (List<String>) claims.get("roles");
-
-            List<SimpleGrantedAuthority> authorities = roles.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList());
-
-            if (username != null) {
-                UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                        username, null, authorities);
-                        auth.setDetails(id);
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            if (username == null) {
+                chain.doFilter(request, response);
+                return;
             }
+
+            User user = userRepository.findByEmail(username);
+            
+            if (user == null) {
+                log.warn("Usuario no encontrado en BD: {}", username);
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
+                return;
+            }
+
+            if (!user.getActive()) {
+                log.warn("Usuario desactivado intentando acceder: {}", username);
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, 
+                    "Tu cuenta está desactivada. Contacta al administrador.");
+                return;
+            }
+
+            Set<GrantedAuthority> authorities = buildAuthoritiesFromDatabase(user);
+
+            UsernamePasswordAuthenticationToken auth =
+                    new UsernamePasswordAuthenticationToken(username, null, authorities);
+            auth.setDetails(user.getId());
+            SecurityContextHolder.getContext().setAuthentication(auth);
 
             if (accessId != null) {
                 request.setAttribute("currentAccessId", accessId);
             }
 
+            log.debug("Usuario {} autenticado con {} permisos desde BD", username, authorities.size());
+
         } catch (Exception e) {
+            log.error("Error validando token: {}", e.getMessage());
             SecurityContextHolder.clearContext();
         }
 
         chain.doFilter(request, response);
+    }
+
+    private Set<GrantedAuthority> buildAuthoritiesFromDatabase(User user) {
+        Set<GrantedAuthority> authorities = new HashSet<>();
+
+        user.getRoles().forEach(role -> {
+            Set<GrantedAuthority> permissions = role.getPermissions().stream()
+                .map(permission -> new SimpleGrantedAuthority(permission.getCode()))
+                .collect(Collectors.toSet());
+            authorities.addAll(permissions);
+        });
+
+        return authorities;
     }
 }

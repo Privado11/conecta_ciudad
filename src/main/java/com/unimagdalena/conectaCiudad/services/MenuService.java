@@ -86,7 +86,11 @@ public class MenuService {
     private List<MenuItemDto> createAdminMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
         
-        menu.add(new MenuItemDto("Gestión de Usuarios", "/admin/users", "Users"));
+        List<MenuItemDto> userMgmt = List.of(
+            new MenuItemDto("Todos los Usuarios", "/admin/users", "Users"),
+            new MenuItemDto("Roles y Permisos", "/admin/roles", "Shield")
+        );
+        menu.add(new MenuItemDto("Gestión de Usuarios", "#", "Users", userMgmt));
         
         menu.add(new MenuItemDto("Proyectos", "/admin/projects", "FolderKanban"));
         

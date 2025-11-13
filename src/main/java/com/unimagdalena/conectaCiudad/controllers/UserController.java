@@ -110,6 +110,7 @@ public class UserController {
         return ResponseEntity.ok(userService.findById(id));
     }
 
+    @PreAuthorize("hasAuthority('USER_VIEW')")
     @GetMapping
     @Operation(
         summary = "Buscar y listar usuarios con filtros avanzados y paginación",
@@ -246,6 +247,7 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasAnyAuthority('USER_UPDATE', 'USER_PROFILE_UPDATE')")
     @PutMapping("/{id}")
     @Operation(
         summary = "Actualizar datos de un usuario existente",
@@ -331,6 +333,7 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUser(id, userDto));
     }
 
+    @PreAuthorize("hasAnyAuthority('USER_DELETE', 'USER_PROFILE_DELETE')")
     @DeleteMapping("/{id}")
     @Operation(
         summary = "Eliminar usuario del sistema",
@@ -405,8 +408,8 @@ public class UserController {
         return ResponseEntity.ok("User deleted successfully");
     }
 
+    @PreAuthorize("hasAuthority('USER_ROLE_ASSIGN')")
     @PostMapping("/{id}/roles/{role}")
-    @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
         summary = "Asignar rol adicional a un usuario",
         description = """
@@ -505,8 +508,8 @@ public class UserController {
         return ResponseEntity.ok(userService.addRole(id, role));
     }
 
+    @PreAuthorize("hasAuthority('USER_ROLE_REMOVE')")
     @DeleteMapping("/{id}/roles/{role}")
-    @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
         summary = "Remover rol de un usuario",
         description = """
@@ -610,8 +613,8 @@ public class UserController {
         return ResponseEntity.ok(userService.removeRole(id, role));
     }
 
+    @PreAuthorize("hasAuthority('USER_CREATE')")
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
         summary = "Crear nuevo usuario con roles asignados (Admin)",
         description = """
@@ -709,8 +712,8 @@ public class UserController {
         return ResponseEntity.ok(userService.saveUser(userDto));
     }
 
+    @PreAuthorize("hasAuthority('USER_TOGGLE_STATUS')")
     @PatchMapping("/{id}/toggle-status")
-    @PreAuthorize("hasAuthority('ADMIN')")
     @Operation(
         summary = "Cambiar el estado de un usuario (activar/desactivar)",
         description = """
@@ -862,8 +865,9 @@ public ResponseEntity<?> validateEmailOrNationalId(
     );
 }
 
+@PreAuthorize("hasAuthority('USER_IMPORT')")
 @PostMapping("/import")
-    @PreAuthorize("hasAuthority('ADMIN')")
+
     @Operation(
         summary = "Importar múltiples usuarios desde archivo CSV",
         description = """
@@ -971,7 +975,7 @@ public ResponseEntity<?> validateEmailOrNationalId(
     }
 
     @GetMapping("/export")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_EXPORT')")
     @Operation(
         summary = "Exportar usuarios a archivo CSV",
         description = """
@@ -1082,7 +1086,7 @@ public ResponseEntity<?> validateEmailOrNationalId(
     }
 
     @GetMapping("/export/all")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority('USER_EXPORT_ALL')")
     @Operation(
         summary = "Exportar TODOS los usuarios del sistema a CSV",
         description = """

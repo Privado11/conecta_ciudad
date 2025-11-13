@@ -30,8 +30,16 @@ public class UserDetailsService implements org.springframework.security.core.use
         }
 
         List<GrantedAuthority> authorities = user.getRoles().stream()
-            .map(rol -> new SimpleGrantedAuthority(rol.getName()))
+    .flatMap(rol -> {
+        List<SimpleGrantedAuthority> roleAuthorities = rol.getPermissions().stream()
+            .map(permission -> new SimpleGrantedAuthority(permission.getCode()))
             .collect(Collectors.toList());
+
+        roleAuthorities.add(new SimpleGrantedAuthority("ROLE_" + rol.getName()));
+        return roleAuthorities.stream();
+    })
+    .collect(Collectors.toList());
+
 
         return org.springframework.security.core.userdetails.User.builder()
             .username(user.getEmail())

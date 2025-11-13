@@ -127,64 +127,94 @@ public class UserServiceImpl implements UserService {
                 .toList();
     }
 
-    @Override
-    public UserDto updateUser(Long id, UserSaveDto user) {
-        try {
-            User existingUser = findUserById(id);
-            
-            String oldName = existingUser.getName();
-            String oldEmail = existingUser.getEmail();
-            String oldRole = existingUser.getRoles().isEmpty() ? "ninguno" : existingUser.getRoles().get(0).getName();
-            
-            existingUser.setName(user.name());
-            existingUser.setEmail(user.email());
-            existingUser.setNationalId(user.nationalId());
-            existingUser.setPhone(user.phone());
+@Override
+public UserDto updateUser(Long id, UserSaveDto user) {
+    try {
+        User existingUser = findUserById(id);
+        
+        
+        String oldName = existingUser.getName();
+        String oldEmail = existingUser.getEmail();
+        String oldNationalId = existingUser.getNationalId();
+        String oldPhone = existingUser.getPhone();
+        Boolean oldActive = existingUser.getActive();
+        String oldRole = existingUser.getRoles().isEmpty() ? "ninguno" : existingUser.getRoles().get(0).getName();
+        
+        existingUser.setName(user.name());
+        existingUser.setEmail(user.email());
+        existingUser.setNationalId(user.nationalId());
+        existingUser.setPhone(user.phone());
 
-            if (user.active() != null) {
-                existingUser.setActive(user.active());
-            }
+        if (user.active() != null) {
+            existingUser.setActive(user.active());
+        }
 
-            String newRole = oldRole;
-            if (user.roles() != null && !user.roles().isEmpty()) {
-                String normalizedRole = validateAndNormalizeRole(user.roles().get(0));
-                Role role = findRoleByName(normalizedRole);
-                existingUser.getRoles().clear();
-                existingUser.getRoles().add(role);
-                newRole = role.getName();
-            }
-            
-            User savedUser = userRepository.save(existingUser);
-            UserDto userDto = userMapper.toDto(savedUser);
-            
-            Map<String, Object> metadata = new HashMap<>();
+        String newRole = oldRole;
+        if (user.roles() != null && !user.roles().isEmpty()) {
+            String normalizedRole = validateAndNormalizeRole(user.roles().get(0));
+            Role role = findRoleByName(normalizedRole);
+            existingUser.getRoles().clear();
+            existingUser.getRoles().add(role);
+            newRole = role.getName();
+        }
+        
+        User savedUser = userRepository.save(existingUser);
+        UserDto userDto = userMapper.toDto(savedUser);
+        
+        Map<String, Object> metadata = new HashMap<>();
+        
+        if (!oldName.equals(savedUser.getName())) {
             metadata.put("oldName", oldName);
             metadata.put("newName", savedUser.getName());
+        }
+        
+        if (!oldEmail.equals(savedUser.getEmail())) {
             metadata.put("oldEmail", oldEmail);
             metadata.put("newEmail", savedUser.getEmail());
+        }
+        
+        if (!Objects.equals(oldNationalId, savedUser.getNationalId())) {
+            metadata.put("oldNationalId", oldNationalId != null ? oldNationalId : "sin valor");
+            metadata.put("newNationalId", savedUser.getNationalId() != null ? savedUser.getNationalId() : "sin valor");
+        }
+        
+        if (!Objects.equals(oldPhone, savedUser.getPhone())) {
+            metadata.put("oldPhone", oldPhone != null ? oldPhone : "sin valor");
+            metadata.put("newPhone", savedUser.getPhone() != null ? savedUser.getPhone() : "sin valor");
+        }
+        
+        if (!Objects.equals(oldActive, savedUser.getActive())) {
+            metadata.put("oldStatus", oldActive != null ? (oldActive ? "activo" : "inactivo") : "sin definir");
+            metadata.put("newStatus", savedUser.getActive() != null ? (savedUser.getActive() ? "activo" : "inactivo") : "sin definir");
+        }
+        
+        if (!oldRole.equals(newRole)) {
             metadata.put("oldRole", oldRole);
             metadata.put("newRole", newRole);
-            
-            auditHelper.logComplete(
-                UserActionType.USER_UPDATED.name(),
-                "Usuario '" + oldName + "' actualizado",
-                EntityType.USER,
-                id,
-                ActionResult.SUCCESS,
-                metadata
-            );
-            
-            return userDto;
-            
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                UserActionType.USER_UPDATED.name(),
-                "Error al actualizar usuario " + id,
-                e.getMessage()
-            );
-            throw e;
         }
+        
+        auditHelper.logComplete(
+            UserActionType.USER_UPDATED.name(),
+            metadata.isEmpty() 
+                ? "Usuario '" + oldName + "' actualizado sin cambios efectivos"
+                : "Usuario '" + oldName + "' actualizado",
+            EntityType.USER,
+            id,
+            ActionResult.SUCCESS,
+            metadata
+        );
+        
+        return userDto;
+        
+    } catch (Exception e) {
+        auditHelper.logFailure(
+            UserActionType.USER_UPDATED.name(),
+            "Error al actualizar usuario " + id,
+            e.getMessage()
+        );
+        throw e;
     }
+}
 
     @Override
     @Transactional

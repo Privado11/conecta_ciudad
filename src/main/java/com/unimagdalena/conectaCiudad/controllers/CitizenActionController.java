@@ -1,6 +1,7 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,7 +38,7 @@ public class CitizenActionController {
 
   
 
-    
+    @PreAuthorize("hasAuthority('CITIZEN_ACTION_CREATE')")
     @PostMapping
     @Operation(
         summary = "Registrar una acción de participación ciudadana",
@@ -201,11 +202,6 @@ public class CitizenActionController {
 
         @Valid @RequestBody CitizenActionRequest request) {
         
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Long userId = (Long) auth.getDetails();
-       
-        
-        // ActionDto action = auditService.registerCitizenAction(request, userId);
         return ResponseEntity.ok("Action registered successfully");
     
     }
