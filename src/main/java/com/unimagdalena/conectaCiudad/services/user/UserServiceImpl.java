@@ -1342,6 +1342,7 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
                              EXPECTED_CSV_HEADERS.length,
                              String.join(", ", EXPECTED_CSV_HEADERS))
             );
+        }
         
         String name = cleanCSVField(record[0]);
         String email = cleanCSVField(record[1]);
