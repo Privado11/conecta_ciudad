@@ -37,6 +37,8 @@ public interface UserService {
     BulkUserImportResult saveBulkUsers(List<UserSaveDto> users);
     byte[] exportUsersToCSV(List<UserDto> users) throws IOException;
     byte[] exportAllUsersToCSV() throws IOException;
+    UserDto changePassword(Long userId, String oldPassword, String newPassword);
+
     
 }
 

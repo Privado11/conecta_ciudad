@@ -8,7 +8,7 @@ import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
 import org.springframework.data.domain.Pageable;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 public interface ActionService {
@@ -19,15 +19,15 @@ public interface ActionService {
     
     ActionDto logActionWithDetails(ActionLogRequest request);
 
-    LocalDateTime getLastActionDateByUserId(Long userId);
+    OffsetDateTime getLastActionDateByUserId(Long userId);
 
     PagedResponse<ActionDto> searchWithFilters(
         String actionType, 
         ActionResult result, 
         EntityType entityType, 
         String searchTerm,
-        LocalDateTime startDate,
-        LocalDateTime endDate,
+        OffsetDateTime startDate,
+        OffsetDateTime endDate,
         Pageable pageable
     );
 

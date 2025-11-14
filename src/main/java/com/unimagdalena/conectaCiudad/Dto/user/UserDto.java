@@ -1,6 +1,6 @@
 package com.unimagdalena.conectaCiudad.Dto.user;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public record UserDto(
@@ -9,8 +9,8 @@ public record UserDto(
     String nationalId,
     String email,
     String phone,
-    LocalDateTime createdAt,
+    OffsetDateTime createdAt,
     List<String> roles,
     Boolean active,
-    LocalDateTime lastActionAt
+    OffsetDateTime lastActionAt
 ) {}

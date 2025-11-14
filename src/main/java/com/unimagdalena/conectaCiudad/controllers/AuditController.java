@@ -1,6 +1,6 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Map;
 
 import org.springframework.data.domain.PageRequest;
@@ -63,12 +63,12 @@ public class AuditController {
         @Parameter(description = "Fecha de inicio del rango (formato ISO: yyyy-MM-dd'T'HH:mm:ss)")
         @RequestParam(required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        LocalDateTime startDate,
+        OffsetDateTime startDate,
 
         @Parameter(description = "Fecha de fin del rango (formato ISO: yyyy-MM-dd'T'HH:mm:ss)")
         @RequestParam(required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-        LocalDateTime endDate,
+        OffsetDateTime endDate,
 
         @Parameter(description = "Número de página (inicia en 0)")
         @RequestParam(defaultValue = "0") int page,

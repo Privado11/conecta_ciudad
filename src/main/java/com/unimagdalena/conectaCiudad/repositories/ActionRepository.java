@@ -7,11 +7,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Repository
 public interface ActionRepository extends JpaRepository<Action, Long>, 
                                           JpaSpecificationExecutor<Action> { 
     @Query("SELECT MAX(a.actionAt) FROM Action a WHERE a.user.id = :userId")
-    LocalDateTime findLastActionDateByUserId(@Param("userId") Long userId);
+    OffsetDateTime findLastActionDateByUserId(@Param("userId") Long userId);
 }

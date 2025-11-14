@@ -9,6 +9,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -215,6 +216,37 @@ public UserDto updateUser(Long id, UserSaveDto user) {
         throw e;
     }
 }
+
+@Override
+public UserDto changePassword(Long userId, String oldPassword, String newPassword) {
+    User user = findUserById(userId);
+
+    if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+        throw new BadRequestException("La contraseña actual es incorrecta");
+    }
+
+    if (newPassword == null || newPassword.length() < MIN_PASSWORD_LENGTH) {
+        throw new BadRequestException(
+            "La nueva contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres"
+        );
+    }
+
+
+    user.setPassword(passwordEncoder.encode(newPassword));
+    userRepository.save(user);
+
+    auditHelper.logComplete(
+        UserActionType.USER_PASSWORD_CHANGED.name(),
+        "El usuario cambió su contraseña",
+        EntityType.USER,
+        userId,
+        ActionResult.SUCCESS,
+        Map.of("userId", userId)
+    );
+
+    return userMapper.toDto(user);
+}
+
 
     @Override
     @Transactional
@@ -1147,7 +1179,7 @@ public UserDto updateUser(Long id, UserSaveDto user) {
 
     private UserDto enrichWithLastAction(User user) {
         UserDto dto = userMapper.toDto(user);
-        LocalDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
+        OffsetDateTime lastAction = actionService.getLastActionDateByUserId(user.getId());
         return new UserDto(
             dto.id(),
             dto.name(),

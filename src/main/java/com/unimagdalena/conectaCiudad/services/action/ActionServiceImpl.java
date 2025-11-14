@@ -27,7 +27,8 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -53,7 +54,7 @@ public class ActionServiceImpl implements ActionService {
     }
 
     @Override
-    public LocalDateTime getLastActionDateByUserId(Long userId) {
+    public OffsetDateTime getLastActionDateByUserId(Long userId) {
         return actionRepository.findLastActionDateByUserId(userId);
     }
 
@@ -119,8 +120,8 @@ public class ActionServiceImpl implements ActionService {
             ActionResult result,
             EntityType entityType,
             String searchTerm,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
+            OffsetDateTime startDate,
+            OffsetDateTime endDate,
             Pageable pageable
     ) {
         String normalizedSearchTerm = (searchTerm != null && !searchTerm.trim().isEmpty())
@@ -142,7 +143,7 @@ public class ActionServiceImpl implements ActionService {
 
         long totalCount = actionRepository.count(spec);
 
-        LocalDateTime startOfDay = LocalDateTime.now()
+        OffsetDateTime startOfDay = OffsetDateTime.now()
             .withHour(0).withMinute(0).withSecond(0).withNano(0);
 
         long successfulCount = actionRepository.count(
@@ -162,7 +163,7 @@ public class ActionServiceImpl implements ActionService {
         long todayCount = actionRepository.count(
             ActionSpecifications.withFilters(
                 actionType, result, entityType, 
-                normalizedSearchTerm, startOfDay, LocalDateTime.now()
+                normalizedSearchTerm, startOfDay, OffsetDateTime.now()
             )
         );
 

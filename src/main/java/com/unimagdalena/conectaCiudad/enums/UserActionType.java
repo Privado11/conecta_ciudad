@@ -3,6 +3,7 @@ package com.unimagdalena.conectaCiudad.enums;
 public enum UserActionType {
     USER_CREATED("Creación de usuario"),
     USER_UPDATED("Actualización de usuario"),
+    USER_PASSWORD_CHANGED("Cambio de contraseña"),
     USER_DELETED("Eliminación de usuario"),
     USER_ACTIVATED("Activación de usuario"),
     USER_DEACTIVATED("Desactivación de usuario"),

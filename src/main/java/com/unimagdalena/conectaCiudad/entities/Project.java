@@ -1,6 +1,10 @@
 package com.unimagdalena.conectaCiudad.entities;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+
+import org.hibernate.annotations.CreationTimestamp;
+
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -34,6 +38,10 @@ public class Project {
 
     @Column(name = "end_at", nullable = false)
     private LocalDateTime endAt;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false)
+    private OffsetDateTime createdAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")

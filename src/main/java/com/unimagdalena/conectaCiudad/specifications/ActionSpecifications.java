@@ -7,7 +7,7 @@ import com.unimagdalena.conectaCiudad.enums.EntityType;
 import jakarta.persistence.criteria.*;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,8 +20,8 @@ public class ActionSpecifications {
             ActionResult result,
             EntityType entityType,
             String searchTerm,
-            LocalDateTime startDate,
-            LocalDateTime endDate
+            OffsetDateTime startDate,
+            OffsetDateTime endDate
     ) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -92,7 +92,7 @@ public class ActionSpecifications {
         };
     }
 
-    public static Specification<Action> recentFailures(LocalDateTime since) {
+    public static Specification<Action> recentFailures(OffsetDateTime since) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             
@@ -114,13 +114,13 @@ public class ActionSpecifications {
 
     public static Specification<Action> today() {
         return (root, query, criteriaBuilder) -> {
-            LocalDateTime startOfDay = LocalDateTime.now()
+            OffsetDateTime startOfDay = OffsetDateTime.now()
                 .withHour(0)
                 .withMinute(0)
                 .withSecond(0)
                 .withNano(0);
             
-            LocalDateTime endOfDay = LocalDateTime.now()
+            OffsetDateTime endOfDay = OffsetDateTime.now()
                 .withHour(23)
                 .withMinute(59)
                 .withSecond(59)

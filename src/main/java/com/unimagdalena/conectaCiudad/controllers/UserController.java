@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.controllers;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -32,6 +33,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import com.unimagdalena.conectaCiudad.Dto.user.ChangePasswordDto;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -1131,5 +1133,126 @@ public ResponseEntity<?> validateEmailOrNationalId(
                 .headers(headers)
                 .body(csvData);
     }
+
+    @PreAuthorize("hasAnyAuthority('USER_UPDATE_PASSWORD', 'USER_PROFILE_UPDATE')")
+@PatchMapping("/{id}/change-password")
+@Operation(
+    summary = "Cambiar la contraseña de un usuario",
+    description = """
+        Permite a un usuario autenticado cambiar su contraseña proporcionando la 
+        **contraseña actual** y la **nueva contraseña**.
+
+        **Flujo completo:**
+        1. El usuario envía su contraseña actual
+        2. El sistema valida que la contraseña sea correcta
+        3. La nueva contraseña debe cumplir con las políticas mínimas (longitud, etc.)
+        4. La contraseña se encripta con BCrypt antes de guardarse
+        5. Se registra el evento en el sistema de auditoría
+
+        **Permisos:**
+        - El usuario solo puede cambiar *su propia* contraseña
+        - Un ADMIN puede cambiar la contraseña de cualquier usuario
+
+        **Validaciones importantes:**
+        - oldPassword es obligatoria
+        - newPassword debe tener al menos 6 caracteres (o la que defina tu política)
+        - La nueva contraseña no puede ser igual a la anterior
+        - La contraseña nunca se retorna en la respuesta
+        """
+)
+@ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Contraseña actualizada correctamente",
+        content = @Content(
+            mediaType = "application/json",
+            schema = @Schema(implementation = UserDto.class),
+            examples = @ExampleObject(
+                value = """
+                {
+                    "id": 1,
+                    "name": "Walter Jiménez",
+                    "email": "walter@example.com",
+                    "nationalId": "1234567890",
+                    "phone": "+573001234567",
+                    "roles": ["CIUDADANO"],
+                    "active": true
+                }
+                """
+            )
+        )
+    ),
+    @ApiResponse(
+        responseCode = "400",
+        description = "Validación fallida: contraseña actual incorrecta o nueva contraseña inválida",
+        content = @Content(
+            mediaType = "application/json",
+            examples = @ExampleObject(
+                value = """
+                {
+                    "status": 400,
+                    "error": "Bad Request",
+                    "message": "La contraseña actual es incorrecta"
+                }
+                """
+            )
+        )
+    ),
+    @ApiResponse(
+        responseCode = "403",
+        description = "No autorizado: solo puedes modificar tu propia contraseña",
+        content = @Content(
+            mediaType = "application/json",
+            examples = @ExampleObject(
+                value = """
+                {
+                    "status": 403,
+                    "error": "Forbidden",
+                    "message": "No puedes cambiar la contraseña de otro usuario"
+                }
+                """
+            )
+        )
+    ),
+    @ApiResponse(
+        responseCode = "404",
+        description = "Usuario no encontrado con el ID proporcionado",
+        content = @Content
+    )
+})
+public ResponseEntity<UserDto> changePassword(
+        @Parameter(
+            description = "ID del usuario cuya contraseña se desea cambiar",
+            example = "1",
+            required = true
+        )
+        @PathVariable Long id,
+
+        @Parameter(
+            description = """
+                Objeto con la contraseña actual y la nueva contraseña.
+                
+                - oldPassword: Contraseña actual del usuario
+                - newPassword: Nueva contraseña que reemplazará a la anterior
+                """,
+            required = true
+        )
+        @RequestBody ChangePasswordDto dto
+) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long currentUserId = (Long) auth.getDetails();
+
+
+    if (!auth.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("USER_UPDATE_PASSWORD"))
+        && !Objects.equals(currentUserId, id)) {
+
+        return ResponseEntity.status(403).body(null);
+    }
+
+    UserDto updated = userService.changePassword(id, dto.oldPassword(), dto.newPassword());
+    return ResponseEntity.ok(updated);
+}
+
 
 }

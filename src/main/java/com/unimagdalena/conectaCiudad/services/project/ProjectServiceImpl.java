@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.services.project;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.HashMap;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
@@ -257,7 +258,7 @@ public class ProjectServiceImpl implements ProjectService {
         if (curator == null) {
             return new ProjectDto(
                 dto.id(), dto.name(), dto.objectives(), dto.beneficiaryPopulations(), dto.budgets(),
-                dto.startAt(), dto.endAt(), dto.status(), dto.creator(), null,
+                dto.startAt(), dto.endAt(),dto.createdAt(), dto.status(), dto.creator(), null,
                 review.getNotes(), review.getDueAt(), review.getReviewedAt()
             );
         }
@@ -269,6 +270,7 @@ public class ProjectServiceImpl implements ProjectService {
             dto.budgets(),
             dto.startAt(),
             dto.endAt(),
+            dto.createdAt(),
             dto.status(),
             dto.creator(),
             userMapper.toDto(curator),
@@ -286,7 +288,7 @@ public class ProjectServiceImpl implements ProjectService {
             validateCuratorAccess(review, curatorId);
 
             review.setNotes(notes);
-            review.setReviewedAt(LocalDateTime.now());
+            review.setReviewedAt(OffsetDateTime.now());
             reviewRepository.save(review);
             
             ProjectStatus oldStatus = project.getStatus();
@@ -327,7 +329,7 @@ public class ProjectServiceImpl implements ProjectService {
             Review review = getProjectReview(projectId);
             validateCuratorAccess(review, curatorId);
 
-            review.setReviewedAt(LocalDateTime.now());
+            review.setReviewedAt(OffsetDateTime.now());
             reviewRepository.save(review);
             
             ProjectStatus oldStatus = project.getStatus();
@@ -497,7 +499,7 @@ public class ProjectServiceImpl implements ProjectService {
             return Review.builder()
                     .project(project)
                     .curator(curator)
-                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .dueAt(OffsetDateTime.now().plusDays(7))
                     .build();
         }
         return reviews.get(0);
@@ -526,7 +528,7 @@ public class ProjectServiceImpl implements ProjectService {
                 Review review = Review.builder()
                     .project(project)
                     .curator(chosenCurator)
-                    .dueAt(LocalDateTime.now().plusDays(7))
+                    .dueAt(OffsetDateTime.now().plusDays(7))
                     .build();
                 reviewRepository.save(review);
                 

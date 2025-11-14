@@ -1,6 +1,6 @@
 package com.unimagdalena.conectaCiudad.entities;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
@@ -22,6 +22,7 @@ import lombok.*;
 @Setter
 @Builder
 public class Action {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -55,7 +56,7 @@ public class Action {
 
     @CreationTimestamp
     @Column(name = "action_at", nullable = false)
-    private LocalDateTime actionAt;
+    private OffsetDateTime actionAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

@@ -1,6 +1,6 @@
 package com.unimagdalena.conectaCiudad.entities;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import org.hibernate.annotations.CreationTimestamp;
 import jakarta.persistence.*;
 import lombok.*;
@@ -19,13 +19,13 @@ public class Review {
 
     @CreationTimestamp
     @Column(name = "start_at")
-    private LocalDateTime startAt;
+    private OffsetDateTime startAt;
 
     @Column(name = "reviewed_at")
-    private LocalDateTime reviewedAt;
+    private OffsetDateTime reviewedAt;
 
     @Column(name = "due_at", nullable = false)
-    private LocalDateTime dueAt;
+    private OffsetDateTime dueAt;
 
     @Column(length = 500)
     private String notes;

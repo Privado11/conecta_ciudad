@@ -1,6 +1,7 @@
 package com.unimagdalena.conectaCiudad.Dto.action;
 
-import java.time.LocalDateTime;
+
+import java.time.OffsetDateTime;
 
 import com.unimagdalena.conectaCiudad.Dto.access.AccessDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
@@ -19,7 +20,7 @@ public record ActionDto(
     ActionResult result,    
     String metadata,        
     String ipAddress,       
-    LocalDateTime actionAt,
+    OffsetDateTime actionAt,
     UserDto user,            
     AccessDto access         
 ) {}
