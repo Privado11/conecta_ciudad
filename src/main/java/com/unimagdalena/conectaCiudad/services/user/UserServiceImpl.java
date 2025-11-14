@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -70,6 +69,9 @@ public class UserServiceImpl implements UserService {
     private static final String EMAIL_REGEX = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
     private static final String PHONE_REGEX = "^(\\+?\\d{10,15})$";
     private static final int MIN_PASSWORD_LENGTH = 6;
+    private static final String[] EXPECTED_CSV_HEADERS = {
+        "name", "email", "nationalId", "phone", "password", "role"
+    };
     
     private final UserRepository userRepository;
     private final UserMapper userMapper;
@@ -1234,16 +1236,29 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
                 throw new BadRequestException("El archivo CSV está vacío");
             }
             
-            boolean hasHeader = detectHeaderRow(records.get(0));
-            int startIndex = hasHeader ? 1 : 0;
+            String[] firstRow = records.get(0);
             
-            log.debug("CSV tiene header: {}. Comenzando desde fila {}", hasHeader, startIndex + 1);
+            if (!looksLikeDataRow(firstRow)) {
+                validateCSVHeaders(firstRow);
+                log.info("Header CSV validado correctamente");
+            } else {
+                throw new BadRequestException(
+                    "El archivo CSV debe incluir una fila de encabezado con el orden: " +
+                    String.join(", ", EXPECTED_CSV_HEADERS)
+                );
+            }
             
-            for (int i = startIndex; i < records.size(); i++) {
+            for (int i = 1; i < records.size(); i++) {
                 String[] record = records.get(i);
                 
                 if (isEmptyOrIncompleteRow(record)) {
                     log.debug("Saltando fila {} (vacía o incompleta)", i + 1);
+                    continue;
+                }
+                
+                if (record.length < EXPECTED_CSV_HEADERS.length) {
+                    log.warn("Fila {}: tiene solo {} columnas, se esperan {}", 
+                            i + 1, record.length, EXPECTED_CSV_HEADERS.length);
                     continue;
                 }
                 
@@ -1262,18 +1277,47 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
         return users;
     }
 
-    private boolean detectHeaderRow(String[] row) {
-        if (row == null || row.length < 5) {
+    private boolean looksLikeDataRow(String[] row) {
+        if (row == null || row.length < 2) {
             return false;
         }
         
-        String firstCell = row[0].toLowerCase().trim();
+        String secondColumn = cleanCSVField(row[1]).toLowerCase();
         
-        return firstCell.contains("name") || 
-               firstCell.contains("nombre") ||
-               firstCell.contains("usuario") ||
-               firstCell.equals("name") ||
-               firstCell.equals("nombre");
+        return secondColumn.matches(EMAIL_REGEX);
+    }
+    
+    private void validateCSVHeaders(String[] headerRow) {
+        if (headerRow == null || headerRow.length < EXPECTED_CSV_HEADERS.length) {
+            throw new BadRequestException(
+                String.format("El archivo CSV debe tener al menos %d columnas. " +
+                             "Orden esperado: %s", 
+                             EXPECTED_CSV_HEADERS.length,
+                             String.join(", ", EXPECTED_CSV_HEADERS))
+            );
+        }
+        
+        List<String> errors = new ArrayList<>();
+        
+        for (int i = 0; i < EXPECTED_CSV_HEADERS.length; i++) {
+            String expected = EXPECTED_CSV_HEADERS[i].toLowerCase();
+            String actual = cleanCSVField(headerRow[i]).toLowerCase();
+            
+            if (!actual.equals(expected)) {
+                errors.add(String.format("Columna %d: se esperaba '%s' pero se encontró '%s'", 
+                                        i + 1, expected, actual));
+            }
+        }
+        
+        if (!errors.isEmpty()) {
+            throw new BadRequestException(
+                "El archivo CSV no tiene el orden correcto de columnas:\n" +
+                String.join("\n", errors) + "\n\n" +
+                "Orden esperado: " + String.join(", ", EXPECTED_CSV_HEADERS)
+            );
+        }
+        
+        log.debug("Headers del CSV validados correctamente");
     }
 
     private boolean isEmptyOrIncompleteRow(String[] record) {
@@ -1291,18 +1335,20 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
     }
 
     private UserSaveDto parseUserFromCSVRow(String[] record, int rowNumber) {
-        if (record.length < 5) {
+        if (record.length < EXPECTED_CSV_HEADERS.length) {
             throw new BadRequestException(
-                String.format("Fila %d: formato incorrecto. Se esperan al menos 5 columnas", rowNumber)
+                String.format("Fila %d: formato incorrecto. Se esperan %d columnas en el orden: %s", 
+                             rowNumber, 
+                             EXPECTED_CSV_HEADERS.length,
+                             String.join(", ", EXPECTED_CSV_HEADERS))
             );
-        }
         
         String name = cleanCSVField(record[0]);
         String email = cleanCSVField(record[1]);
         String nationalId = cleanCSVField(record[2]);
         String phone = cleanCSVField(record[3]);
         String password = cleanCSVField(record[4]);
-        String role = record.length > 5 ? cleanCSVField(record[5]).toUpperCase() : DEFAULT_ROLE;
+        String role = cleanCSVField(record[5]).toUpperCase();
         
         if (role.isBlank()) {
             role = DEFAULT_ROLE;
