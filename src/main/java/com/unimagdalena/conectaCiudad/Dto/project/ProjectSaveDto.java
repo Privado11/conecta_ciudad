@@ -1,7 +1,9 @@
 package com.unimagdalena.conectaCiudad.Dto.project;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,15 +23,15 @@ public record ProjectSaveDto(
     @Size(max = 250, message = "Beneficiary populations must not exceed 250 characters")
     String beneficiaryPopulations,
 
-    @NotBlank(message = "Budgets information is required")
-    @Size(max = 150, message = "Budgets must not exceed 150 characters")
-    String budgets,
+    @NotNull(message = "Budget is required")
+    @DecimalMin(value = "0.0", inclusive = false, message = "Budget must be greater than zero")
+    BigDecimal budget,
 
     @NotNull(message = "Start date is required")
-    LocalDateTime startAt,
+    LocalDate startAt,
 
     @NotNull(message = "End date is required")
     @Future(message = "End date must be in the future")
-    LocalDateTime endAt
+    LocalDate endAt
 
 ) {}

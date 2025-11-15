@@ -1,8 +1,11 @@
 package com.unimagdalena.conectaCiudad.Dto.project;
 
-import java.time.LocalDateTime;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.List;
 
+import com.unimagdalena.conectaCiudad.Dto.review.ReviewDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 
@@ -11,14 +14,15 @@ public record ProjectDto(
     String name,
     String objectives,
     String beneficiaryPopulations,
-    String budgets,
-    LocalDateTime startAt,
-    LocalDateTime endAt,
+    BigDecimal budget,
+    LocalDate startAt,
+    LocalDate endAt,
+    LocalDate votingStartAt,
+    LocalDate votingEndAt,
     OffsetDateTime createdAt,
+    OffsetDateTime updatedAt,
     ProjectStatus status,
     UserDto creator,
-    UserDto curator,
-    String reviewNotes,
-    OffsetDateTime reviewDueAt,
-    OffsetDateTime reviewedAt
+    Long version,
+    List<ReviewDto> reviews
 ) {}

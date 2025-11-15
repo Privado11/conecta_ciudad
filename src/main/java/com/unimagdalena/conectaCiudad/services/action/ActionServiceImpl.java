@@ -222,7 +222,7 @@ public class ActionServiceImpl implements ActionService {
                     projectData.put("name", project.getName());
                     projectData.put("status", project.getStatus().name());
                     projectData.put("creator", project.getCreator().getName());
-                    projectData.put("budgets", project.getBudgets());
+                    projectData.put("budget", project.getBudget());
                     projectData.put("startAt", project.getStartAt());
                     projectData.put("endAt", project.getEndAt());
                     details.put("entityData", projectData);

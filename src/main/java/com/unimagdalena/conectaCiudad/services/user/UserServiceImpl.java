@@ -261,7 +261,7 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
             
             long activeProjects = projectRepository.countByCreatorIdAndStatus(
                 id, 
-                ProjectStatus.PUBLICADO
+                ProjectStatus.PUBLISHED
             );
             
             if (activeProjects > 0) {
@@ -272,7 +272,7 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
             }
             
             List<Project> inactiveProjects = projectRepository
-                .findByCreatorIdAndStatusNot(id, ProjectStatus.PUBLICADO);
+                .findByCreatorIdAndStatusNot(id, ProjectStatus.PUBLISHED);
             
             if (!inactiveProjects.isEmpty()) {
                 User systemUser = userRepository.findById(1L)
@@ -698,7 +698,7 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
             Map<String, Integer> nationalIdMap = new HashMap<>();
             Set<Integer> rowsWithErrors = new HashSet<>();
             
-            // Validación de duplicados en CSV y campos requeridos
+
             for (int i = 0; i < users.size(); i++) {
                 UserSaveDto user = users.get(i);
                 int rowNumber = i + 2; 
@@ -1046,7 +1046,6 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
         }
     }
 
-    // ==================== MÉTODOS PRIVADOS DE VALIDACIÓN ====================
 
     private String escapeCSV(String value) {
         if (value == null) {

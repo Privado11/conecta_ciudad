@@ -7,6 +7,7 @@ public enum ProjectActionType {
     PROJECT_DELETED("Eliminación de proyecto"),
     PROJECT_OBSERVATIONS_ADDED("Adición de observaciones"),
     PROJECT_APPROVED("Aprobación de proyecto"),
+    PROJECT_SUBMITTED_FOR_REVIEW("Envío a revisión"),
     CURATOR_REASSIGNED("Reasignación de curador");
 
     private final String description;

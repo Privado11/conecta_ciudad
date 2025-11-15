@@ -18,7 +18,7 @@ public class Review {
     private Long id;
 
     @CreationTimestamp
-    @Column(name = "start_at")
+    @Column(name = "start_at", nullable = false, updatable = false)
     private OffsetDateTime startAt;
 
     @Column(name = "reviewed_at")
@@ -27,14 +27,15 @@ public class Review {
     @Column(name = "due_at", nullable = false)
     private OffsetDateTime dueAt;
 
-    @Column(length = 500)
+    @Column(length = 1000, columnDefinition = "TEXT")
     private String notes;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "curator_id", nullable = false)
     private User curator;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "project_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id", nullable = false)
     private Project project;
+
 }
