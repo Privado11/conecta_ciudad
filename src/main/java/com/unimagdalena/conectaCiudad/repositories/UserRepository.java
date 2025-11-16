@@ -118,4 +118,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
                                             @Param("active") Boolean active,
                                             @Param("currentUserId") Long currentUserId);
 
+    @Query("SELECT DISTINCT u FROM User u " +
+           "JOIN u.roles r " +
+           "WHERE u.active = true " +
+           "AND UPPER(r.name) = 'CURATOR' " +
+           "ORDER BY u.name ASC")
+    List<User> findActiveCurators();
 }

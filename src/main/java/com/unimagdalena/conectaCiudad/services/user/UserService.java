@@ -7,6 +7,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import com.unimagdalena.conectaCiudad.Dto.user.CuratorDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 
@@ -38,6 +39,8 @@ public interface UserService {
     byte[] exportUsersToCSV(List<UserDto> users) throws IOException;
     byte[] exportAllUsersToCSV() throws IOException;
     UserDto changePassword(Long userId, String oldPassword, String newPassword);
+    List<CuratorDto> findAllCuratorsWithProjectStats();
+
 
     
 }

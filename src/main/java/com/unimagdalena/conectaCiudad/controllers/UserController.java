@@ -34,6 +34,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
 import com.unimagdalena.conectaCiudad.Dto.user.ChangePasswordDto;
+import com.unimagdalena.conectaCiudad.Dto.user.CuratorDto;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -1253,6 +1254,13 @@ public ResponseEntity<UserDto> changePassword(
     UserDto updated = userService.changePassword(id, dto.oldPassword(), dto.newPassword());
     return ResponseEntity.ok(updated);
 }
+
+    @GetMapping("/curators")
+    @Operation(summary = "Lista de curadores con estadísticas de proyectos")
+    public ResponseEntity<List<CuratorDto>> getCuratorsWithStats() {
+        return ResponseEntity.ok(userService.findAllCuratorsWithProjectStats());
+    }
+
 
 
 }

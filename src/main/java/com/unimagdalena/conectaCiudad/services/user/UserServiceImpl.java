@@ -30,6 +30,7 @@ import com.opencsv.exceptions.CsvException;
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.page.Statistics;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
+import com.unimagdalena.conectaCiudad.Dto.user.CuratorDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserImportError;
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
@@ -45,6 +46,7 @@ import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
+import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.action.ActionService;
@@ -79,6 +81,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final ProjectRepository projectRepository;
     private final ActionService actionService;
+    private final ReviewRepository reviewRepository;
     private final AuditHelper auditHelper;
 
     @Override
@@ -652,6 +655,29 @@ public UserDto changePassword(Long userId, String oldPassword, String newPasswor
     
         return new PagedResponse<>(users, stats);
     }
+
+    @Override
+    public List<CuratorDto> findAllCuratorsWithProjectStats() {
+    
+        List<User> curators = userRepository.findActiveCurators();
+    
+        return curators.stream().map(curator -> {
+    
+            Long active = reviewRepository.countByCuratorIdAndReviewedAtIsNull(curator.getId());
+            Long completed = reviewRepository.countByCuratorIdAndReviewedAtIsNotNull(curator.getId());
+            Long total = active + completed; 
+    
+            return new CuratorDto(
+                userMapper.toDto(curator),
+                active,
+                completed,
+                total
+            );
+    
+        }).toList();
+    }
+    
+
 
     @Override
     public void validateUniqueFields(String email, String nationalId) {
