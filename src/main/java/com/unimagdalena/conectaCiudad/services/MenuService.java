@@ -119,20 +119,14 @@ public class MenuService {
         
         List<MenuItemDto> reviewQueue = List.of(
             new MenuItemDto("Pendientes", "/review/pending", "Clock", true, 1, List.of()),
-            new MenuItemDto("En Proceso", "/review/in-progress", "Loader"),
             new MenuItemDto("Historial", "/review/history", "History")
         );
         menu.add(new MenuItemDto("Cola de Revisión", "#", "ClipboardCheck", reviewQueue));
         
-        List<MenuItemDto> projects = List.of(
-            new MenuItemDto("Aprobados", "/projects/approved", "CheckCircle"),
-            new MenuItemDto("Rechazados", "/projects/rejected", "XCircle"),
-            new MenuItemDto("Todos", "/projects/all", "List")
-        );
-        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projects));
+       
+        menu.add(new MenuItemDto("Proyectos Aprobados", "/projects/approved", "FolderKanban"));
         
-        menu.add(new MenuItemDto("Auditoría", "/audit", "Shield"));
-        menu.add(new MenuItemDto("Reportes", "/reports", "FileText"));
+       
         
         return menu;
     }
