@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 public record ReviewHistoryDto(
     Long projectId,
     String projectName,
+    String description,
     String objectives,
     String beneficiaryPopulations,
     BigDecimal budget,

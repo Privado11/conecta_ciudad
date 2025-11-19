@@ -274,6 +274,7 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
     return new ReviewHistoryDto(
             project.getId(),
             project.getName(),
+            project.getDescription(),
             project.getObjectives(),
             project.getBeneficiaryPopulations(),
             project.getBudget(),
@@ -316,6 +317,7 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
         return new PendingReviewDto(
                 project.getId(),
                 project.getName(),
+                project.getDescription(),
                 project.getObjectives(),
                 project.getBeneficiaryPopulations(),
                 project.getBudget(),

@@ -9,6 +9,7 @@ import java.time.temporal.ChronoUnit;
 public record PendingReviewDto(
     Long projectId,
     String projectName,
+    String description,
     String objectives,
     String beneficiaryPopulations,
     BigDecimal budget,

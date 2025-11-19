@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.repositories;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -56,5 +57,33 @@ public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpec
            "AND p.status = 'PUBLISHED' " +
            "ORDER BY p.votingEndAt ASC")
     List<Project> findActiveVotations();
+
+
+    @Query("""
+SELECT p FROM Project p 
+LEFT JOIN FETCH p.creator
+WHERE p.status = 'READY_TO_PUBLISH' 
+AND (p.votingStartAt IS NULL OR p.votingStartAt > :currentDate)
+ORDER BY p.votingStartAt ASC NULLS LAST, p.createdAt DESC
+""")
+    List<Project> findReadyToPublishNotOpenForVoting(@Param("currentDate") LocalDate currentDate);
+
+
+    @Query("""
+SELECT p FROM Project p 
+LEFT JOIN FETCH p.creator
+WHERE (p.status = 'PUBLISHED' OR 
+      (p.status = 'READY_TO_PUBLISH' AND p.votingStartAt <= :currentDate))
+AND p.votingStartAt <= :currentDate 
+AND p.votingEndAt >= :currentDate
+ORDER BY p.votingEndAt ASC
+""")
+    List<Project> findOpenForVoting(@Param("currentDate") LocalDate currentDate);
+    @Query("""
+    SELECT p FROM Project p
+    WHERE p.votingEndAt < :today
+    AND p.status = 'READY_TO_PUBLISH'
+""")
+    List<Project> findExpiredVoting(@Param("today") LocalDate today);
 
 }

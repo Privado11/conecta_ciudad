@@ -15,6 +15,9 @@ public record ProjectSaveDto(
     @Size(max = 50, message = "Project name must not exceed 50 characters")
     String name,
 
+    @NotBlank(message = "Description is required")
+    String description,
+
     @NotBlank(message = "Objectives are required")
     @Size(max = 150, message = "Objectives must not exceed 150 characters")
     String objectives,

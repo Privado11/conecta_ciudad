@@ -1,11 +1,11 @@
 package com.unimagdalena.conectaCiudad.services.project;
 
+import java.time.LocalDate;
 import java.util.List;
 
+import com.unimagdalena.conectaCiudad.Dto.project.*;
 import org.springframework.stereotype.Service;
 
-import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
-import com.unimagdalena.conectaCiudad.Dto.project.ProjectMapper;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
@@ -22,6 +22,8 @@ public class ProjectServiceImpl implements ProjectService {
     
     private final ProjectRepository projectRepository;
     private final ProjectMapper projectMapper;
+    private final ProjectReadyMapper projectReadyMapper;
+    private final ProjectVotingMapper projectVotingMapper;
 
 
     public ProjectDto findById(Long id) {
@@ -35,6 +37,24 @@ public class ProjectServiceImpl implements ProjectService {
         return projectRepository.findByStatus(ProjectStatus.READY_TO_PUBLISH, Pageable.unpaged())
             .stream()
             .map(projectMapper::toDto)
+            .toList();
+    }
+
+     @Override
+    public List<ProjectReadyDto> findReadyToPublishNotOpen() {
+        LocalDate today = LocalDate.now();
+        return projectRepository.findReadyToPublishNotOpenForVoting(today)
+            .stream()
+            .map(projectReadyMapper::toDto)
+            .toList();
+    }
+
+    @Override
+    public List<ProjectVotingDto> findOpenForVoting() {
+        LocalDate today = LocalDate.now();
+        return projectRepository.findOpenForVoting(today)
+            .stream()
+            .map(projectVotingMapper::toDto)
             .toList();
     }
 }

@@ -28,6 +28,9 @@ public class Project {
     @Column(length = 50, nullable = false)
     private String name;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
     @Column(length = 1000, nullable = false, columnDefinition = "TEXT")
     private String objectives;
     

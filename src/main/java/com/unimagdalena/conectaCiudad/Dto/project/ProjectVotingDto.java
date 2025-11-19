@@ -3,13 +3,11 @@ package com.unimagdalena.conectaCiudad.Dto.project;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.List;
 
-import com.unimagdalena.conectaCiudad.Dto.review.ReviewDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 
-public record ProjectDto(
+public record ProjectVotingDto(
     Long id,
     String name,
     String description,
@@ -21,9 +19,19 @@ public record ProjectDto(
     LocalDate votingStartAt,
     LocalDate votingEndAt,
     OffsetDateTime createdAt,
-    OffsetDateTime updatedAt,
     ProjectStatus status,
     UserDto creator,
     Long version,
-    List<ReviewDto> reviews
-) {}
+    VotingActiveInfo votingInfo
+) {
+    public record VotingActiveInfo(
+        boolean isOpen,
+        boolean isExpiringSoon,
+        Long daysRemaining,
+        Long hoursRemaining,
+        Long totalVotingDays,
+        Double progressPercentage,
+        String urgencyLevel, 
+        String statusMessage
+    ) {}
+}
