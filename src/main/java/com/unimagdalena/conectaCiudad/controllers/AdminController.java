@@ -205,16 +205,13 @@ public class AdminController {
             - email: Correo electrónico (debe ser único en el sistema)
             - nationalId: Número de identificación nacional
             - phone: Número telefónico de contacto
-            - password: Contraseña (será encriptada automáticamente)
             
             **Restricciones:**
             - El email debe ser único; no puede coincidir con otro usuario existente
             - El nationalId debe ser único en el sistema
             - No se pueden actualizar los roles directamente (usar endpoints específicos: POST/DELETE /roles)
-            - La contraseña se encripta automáticamente antes de guardarse
             
             **Permisos:**
-            - Un usuario puede actualizar su propia información
             - Un ADMIN puede actualizar la información de cualquier usuario
             
             **Nota:** Para cambios de roles, usar los endpoints `/users/{id}/roles/{role}`
@@ -1141,4 +1138,32 @@ public class AdminController {
 
         return ResponseEntity.ok(response);
     }
+
+   
+
+    @PreAuthorize("hasAuthority('PROJECT_VIEW') or hasAuthority('PROJECT_SEARCH')")
+    @GetMapping("/projects/statistics")
+    @Operation(
+    summary = "Obtener estadísticas globales del sistema de proyectos",
+    description = """
+        Retorna métricas agregadas del sistema:
+        - Total de proyectos
+        - Proyectos por estado
+        - Proyectos creados este mes
+        - Últimos proyectos creados
+        - Últimos proyectos actualizados
+        Incluye un resumen general util para dashboards.
+        """
+)
+@ApiResponses({
+    @ApiResponse(
+        responseCode = "200", 
+        description = "Estadísticas generadas correctamente"
+    ),
+    @ApiResponse(responseCode = "403", description = "Sin permisos para ver estadísticas")
+})
+public ResponseEntity<?> getGlobalStatistics() {
+    return ResponseEntity.ok(adminService.getGlobalStatistics());
+}
+
 }

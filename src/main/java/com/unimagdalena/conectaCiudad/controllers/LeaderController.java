@@ -35,7 +35,7 @@ public class LeaderController {
     @Operation(
             summary = "Crear nuevo proyecto comunitario",
             description = """
-            Permite a un líder comunitario crear un nuevo proyecto. El proyecto se crea en estado PENDIENTE 
+            Permite a un líder comunitario crear un nuevo proyecto. El proyecto se crea en estado BORRADOR 
             y queda asociado automáticamente al usuario autenticado como creador.
             
             **Restricciones de seguridad:**
@@ -43,17 +43,20 @@ public class LeaderController {
             - El creador se asigna automáticamente desde el token de autenticación JWT
             
             **Flujo completo del proyecto:**
-            1. Creación → PENDIENTE (Pendiente de revisión)
-            2. Asignación de curador → EN_REVISION (En revisión)
-            3. Si requiere cambios → OBSERVACIONES (Devuelto con observaciones)
-            4. Preparación → LISTO_PARA_PUBLICAR (Listo para publicar)
-            5. Publicación → PUBLICADO (Publicado)
+            1. Creación → DRAFT (Borrador - Editable por el líder)
+            2. Envío → PENDING_REVIEW (Pendiente de revisión)
+            3. Asignación de curador → IN_REVIEW (En revisión)
+            4. Si requiere cambios → RETURNED_WITH_OBSERVATIONS (Devuelto con observaciones - Editable)
+            5. Aprobación → READY_TO_PUBLISH (Listo para publicar)
+            6. Publicación → PUBLISHED (Publicado y visible para votación)
+            
+            **Estados editables:** DRAFT, RETURNED_WITH_OBSERVATIONS
             """
     )
     @ApiResponses(value = {
             @ApiResponse(
                     responseCode = "200",
-                    description = "Proyecto creado exitosamente con estado PENDIENTE",
+                    description = "Proyecto creado exitosamente con estado DRAFT (Borrador)",
                     content = @Content(
                             mediaType = "application/json",
                             schema = @Schema(implementation = ProjectDto.class)
@@ -79,12 +82,17 @@ public class LeaderController {
             summary = "Actualizar datos de un proyecto",
             description = """
             Permite modificar los datos básicos de un proyecto.
-            Solo el creador puede actualizar su propio proyecto.
+            
+            **Restricciones:**
+            - Solo el creador puede actualizar su propio proyecto
+            - El proyecto debe estar en estado DRAFT (Borrador) o RETURNED_WITH_OBSERVATIONS (Devuelto con observaciones)
+            - No se pueden editar proyectos que ya están en revisión o publicados
             """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Proyecto actualizado"),
-            @ApiResponse(responseCode = "403", description = "Sin permisos"),
+            @ApiResponse(responseCode = "200", description = "Proyecto actualizado exitosamente"),
+            @ApiResponse(responseCode = "400", description = "El proyecto no está en un estado editable"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos para editar este proyecto"),
             @ApiResponse(responseCode = "404", description = "Proyecto no encontrado")
     })
     public ResponseEntity<ProjectDto> updateProject(
@@ -104,10 +112,20 @@ public class LeaderController {
     @Operation(
             summary = "Enviar proyecto a revisión",
             description = """
-            Permite al líder comunitario enviar su proyecto para revisión.
-            El proyecto debe estar en estado BORRADOR o OBSERVACIONES.
-        Se asigna automáticamente un curador si no tiene uno asignado.
-        """
+            Permite al líder comunitario enviar su proyecto para revisión por parte de un curador.
+            
+            **Estados válidos para envío:**
+            - DRAFT (Borrador): Proyecto recién creado o guardado como borrador
+            - RETURNED_WITH_OBSERVATIONS: Proyecto devuelto por el curador con observaciones que ya fueron corregidas
+            
+            **Proceso automático:**
+            - El sistema asigna automáticamente un curador disponible si no tiene uno asignado
+            - El estado cambia a PENDING_REVIEW (Pendiente de revisión)
+            
+            **Restricciones:**
+            - Solo el creador del proyecto puede enviarlo
+            - El proyecto debe estar completo y cumplir las validaciones básicas
+            """
     )
     @ApiResponses({
             @ApiResponse(
@@ -118,8 +136,8 @@ public class LeaderController {
                             schema = @Schema(implementation = ProjectDto.class)
                     )
             ),
-            @ApiResponse(responseCode = "400", description = "El proyecto no está en un estado válido para enviar"),
-            @ApiResponse(responseCode = "403", description = "Solo el creador puede enviar su proyecto"),
+            @ApiResponse(responseCode = "400", description = "El proyecto no está en estado DRAFT o RETURNED_WITH_OBSERVATIONS"),
+            @ApiResponse(responseCode = "403", description = "Solo el creador puede enviar su proyecto a revisión"),
             @ApiResponse(responseCode = "404", description = "Proyecto no encontrado")
     })
     public ResponseEntity<ProjectDto> submitForReview(
@@ -136,11 +154,19 @@ public class LeaderController {
     @DeleteMapping("/project/{id}")
     @Operation(
             summary = "Eliminar proyecto del sistema",
-            description = "Elimina permanentemente un proyecto. Operación irreversible."
+            description = """
+            Elimina permanentemente un proyecto del sistema.
+            
+            **Advertencia:** Esta operación es irreversible y eliminará todos los datos asociados al proyecto.
+            
+            **Restricciones:**
+            - Solo el creador puede eliminar su propio proyecto
+            - Se recomienda solo eliminar proyectos en estado DRAFT
+            """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Proyecto eliminado"),
-            @ApiResponse(responseCode = "403", description = "Sin permisos"),
+            @ApiResponse(responseCode = "200", description = "Proyecto eliminado exitosamente"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos para eliminar este proyecto"),
             @ApiResponse(responseCode = "404", description = "Proyecto no encontrado")
     })
     public ResponseEntity<String> deleteProject(@PathVariable Long id) {

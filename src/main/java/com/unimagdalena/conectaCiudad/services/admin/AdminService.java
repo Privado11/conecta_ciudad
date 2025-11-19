@@ -6,6 +6,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
+import com.unimagdalena.conectaCiudad.Dto.page.Statistics;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
 import com.unimagdalena.conectaCiudad.Dto.user.CuratorInfoDto;
@@ -57,4 +58,6 @@ public interface AdminService {
             OffsetDateTime createdTo,
             Pageable pageable
     );
+        Statistics<ProjectDto> getGlobalStatistics();
 }
+

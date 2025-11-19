@@ -117,14 +117,10 @@ public class MenuService {
     private List<MenuItemDto> createCuratorMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
         
-        List<MenuItemDto> reviewQueue = List.of(
-            new MenuItemDto("Pendientes", "/review/pending", "Clock", true, 1, List.of()),
-            new MenuItemDto("Historial", "/review/history", "History")
-        );
-        menu.add(new MenuItemDto("Cola de Revisión", "#", "ClipboardCheck", reviewQueue));
+        menu.add(new MenuItemDto("Cola de Revisión", "curator/review/pending", "Clock"));
         
        
-        menu.add(new MenuItemDto("Proyectos Aprobados", "/projects/approved", "FolderKanban"));
+        menu.add(new MenuItemDto("Historial", "curator/review/history", "History"));
         
        
         
@@ -135,16 +131,16 @@ public class MenuService {
         List<MenuItemDto> menu = new ArrayList<>();
         
         List<MenuItemDto> myProjects = List.of(
-            new MenuItemDto("Crear Proyecto", "/projects/create", "PlusCircle", true, 1, List.of()),
-            new MenuItemDto("En Revisión", "/projects/review", "Clock"),
-            new MenuItemDto("Publicados", "/projects/published", "Globe"),
-            new MenuItemDto("Devueltos", "/projects/returned", "RotateCcw"),
-            new MenuItemDto("Todos", "/projects/my-projects", "FolderOpen")
+            new MenuItemDto("Crear Proyecto", "lider/projects/create", "PlusCircle", true, 1, List.of()),
+            new MenuItemDto("En Revisión", "lider/projects/review", "Clock"),
+            new MenuItemDto("Publicados", "lider/projects/published", "Globe"),
+            new MenuItemDto("Devueltos", "lider/projects/returned", "RotateCcw"),
+            new MenuItemDto("Todos", "lider/projects/my-projects", "FolderOpen")
         );
         menu.add(new MenuItemDto("Mis Proyectos", "#", "FolderKanban", myProjects));
         
-        menu.add(new MenuItemDto("Explorar Proyectos", "/projects/explore", "Search"));
-        menu.add(new MenuItemDto("Resultados", "/results", "BarChart3"));
+        menu.add(new MenuItemDto("Explorar Proyectos", "lider/projects/explore", "Search"));
+        menu.add(new MenuItemDto("Resultados", "lider/results", "BarChart3"));
         
         return menu;
     }
@@ -153,12 +149,12 @@ public class MenuService {
         List<MenuItemDto> menu = new ArrayList<>();
         
         List<MenuItemDto> projects = List.of(
-            new MenuItemDto("Explorar", "/projects", "Search"),
-            new MenuItemDto("Mis Votaciones", "/my-votes", "Vote")
+            new MenuItemDto("Explorar", "citizen/projects", "Search"),
+            new MenuItemDto("Mis Votaciones", "citizen/my-votes", "Vote")
         );
         menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projects));
         
-        menu.add(new MenuItemDto("Votar", "/vote", "Vote"));
+        menu.add(new MenuItemDto("Votar", "citizen/vote", "Vote"));
         
         return menu;
     }

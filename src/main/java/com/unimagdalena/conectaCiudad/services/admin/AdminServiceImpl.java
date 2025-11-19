@@ -418,6 +418,54 @@ public class AdminServiceImpl implements AdminService {
     }
 
     @Override
+    public Statistics<ProjectDto> getGlobalStatistics() {
+
+    List<Project> all = projectRepository.findAll();
+
+    Map<ProjectStatus, Long> countByStatus = new EnumMap<>(ProjectStatus.class);
+
+    for (ProjectStatus s : ProjectStatus.values()) {
+        long count = all.stream()
+                .filter(p -> p.getStatus() == s)
+                .count();
+        countByStatus.put(s, count);
+    }
+
+    long total = all.size();
+
+    long createdToday = all.stream()
+            .filter(p -> p.getCreatedAt().isAfter(
+                    OffsetDateTime.now().toLocalDate().atStartOfDay().atOffset(OffsetDateTime.now().getOffset())
+            )).count();
+
+    return new Statistics<>(
+        total,
+        Map.of(
+            "total", total,
+            "pending", countByStatus.getOrDefault(ProjectStatus.PENDING_REVIEW, 0L),
+            "inReview", countByStatus.getOrDefault(ProjectStatus.IN_REVIEW, 0L),
+            "withObservations", countByStatus.getOrDefault(ProjectStatus.RETURNED_WITH_OBSERVATIONS, 0L),
+            "readyToPublish", countByStatus.getOrDefault(ProjectStatus.READY_TO_PUBLISH, 0L),
+            "published", countByStatus.getOrDefault(ProjectStatus.PUBLISHED, 0L),
+            "votingClosed", countByStatus.getOrDefault(ProjectStatus.VOTING_CLOSED, 0L),
+
+            "inProgress",
+            countByStatus.getOrDefault(ProjectStatus.PENDING_REVIEW, 0L)
+            + countByStatus.getOrDefault(ProjectStatus.IN_REVIEW, 0L)
+            + countByStatus.getOrDefault(ProjectStatus.RETURNED_WITH_OBSERVATIONS, 0L),
+
+
+            "completed",
+                countByStatus.getOrDefault(ProjectStatus.READY_TO_PUBLISH, 0L)
+                + countByStatus.getOrDefault(ProjectStatus.PUBLISHED, 0L)
+                + countByStatus.getOrDefault(ProjectStatus.VOTING_CLOSED, 0L),
+
+            "createdToday", createdToday
+        )
+    );
+}
+
+    @Override
     @Transactional
     public BulkUserImportResult importUsersFromCSV(MultipartFile file) throws IOException {
         log.info("Importando usuarios desde CSV: {}", file.getOriginalFilename());
