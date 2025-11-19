@@ -54,7 +54,9 @@ public class AdminController {
 
     private final AdminService adminService;
     private final UserService userService;
+    private final com.unimagdalena.conectaCiudad.services.dashboard.DashboardService dashboardService;
     private static final int MAX_PAGE_SIZE = 100;
+
 
     @PreAuthorize("hasAuthority('USER_VIEW')")
     @GetMapping("/users")
@@ -1164,6 +1166,102 @@ public class AdminController {
 })
 public ResponseEntity<?> getGlobalStatistics() {
     return ResponseEntity.ok(adminService.getGlobalStatistics());
+}
+
+// ==================== DASHBOARD ENDPOINTS ====================
+
+
+@GetMapping("/dashboard/stats")
+@Operation(
+    summary = "Obtener estadísticas generales del dashboard",
+    description = """
+        Retorna las estadísticas principales del sistema para el dashboard de administrador:
+        - Total de usuarios registrados
+        - Usuarios activos
+        - Total de proyectos
+        - Tasa de participación
+        - Nuevos usuarios este mes
+        """
+)
+@ApiResponses({
+    @ApiResponse(
+        responseCode = "200",
+        description = "Estadísticas obtenidas exitosamente"
+    ),
+    @ApiResponse(
+        responseCode = "403",
+        description = "Acceso denegado - Se requiere rol ADMIN"
+    )
+})
+public ResponseEntity<com.unimagdalena.conectaCiudad.Dto.dashboard.DashboardStatsDto> getDashboardStats() {
+    return ResponseEntity.ok(dashboardService.getDashboardStats());
+}
+
+@GetMapping("/dashboard/project-status")
+@Operation(
+    summary = "Obtener distribución de proyectos por estado",
+    description = """
+        Retorna la cantidad de proyectos agrupados por su estado actual.
+        Incluye colores para visualización en gráficos.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.ProjectStatusDataDto>> getProjectStatusDistribution() {
+    return ResponseEntity.ok(dashboardService.getProjectStatusDistribution());
+}
+
+
+@GetMapping("/dashboard/project-trend")
+@Operation(
+    summary = "Obtener tendencia de creación de proyectos",
+    description = """
+        Retorna la cantidad de proyectos creados por mes durante los últimos 6 meses.
+        Útil para visualizar la tendencia de crecimiento.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.ProjectTrendDataDto>> getProjectTrend() {
+    return ResponseEntity.ok(dashboardService.getProjectTrend());
+}
+
+
+@GetMapping("/dashboard/recent-activities")
+@Operation(
+    summary = "Obtener actividades recientes del sistema",
+    description = """
+        Retorna las últimas acciones realizadas en el sistema.
+        Incluye información del usuario, acción realizada, timestamp y estado.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.RecentActivityDto>> getRecentActivities(
+    @Parameter(description = "Cantidad máxima de actividades a retornar")
+    @RequestParam(defaultValue = "10") int limit
+) {
+    return ResponseEntity.ok(dashboardService.getRecentActivities(limit));
+}
+
+
+@GetMapping("/dashboard/user-role-distribution")
+@Operation(
+    summary = "Obtener distribución de usuarios por rol",
+    description = """
+        Retorna la cantidad de usuarios agrupados por rol.
+        Incluye colores para visualización en gráficos.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.UserRoleDistributionDto>> getUserRoleDistribution() {
+    return ResponseEntity.ok(dashboardService.getUserRoleDistribution());
+}
+
+@GetMapping("/dashboard/voting-activity")
+@Operation(
+    summary = "Obtener actividad de votaciones activas",
+    description = """
+        Retorna los proyectos que actualmente tienen votación activa.
+        Se consideran activos los proyectos con estado PUBLISHED y cuyas fechas
+        de votación (votingStartAt y votingEndAt) incluyen la fecha actual.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.VotingActivityDataDto>> getVotingActivity() {
+    return ResponseEntity.ok(dashboardService.getVotingActivity());
 }
 
 }

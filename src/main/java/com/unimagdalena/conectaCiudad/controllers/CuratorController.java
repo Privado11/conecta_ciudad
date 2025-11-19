@@ -44,6 +44,7 @@ import java.util.List;
 public class CuratorController {
 
     private final CuratorService curatorService;
+    private final com.unimagdalena.conectaCiudad.services.curator.CuratorDashboardService curatorDashboardService;
 
     @PreAuthorize("hasAuthority('PROJECT_ADD_OBSERVATIONS')")
     @PutMapping("/project/{id}/observations")
@@ -343,4 +344,93 @@ public ResponseEntity<PagedResponse<ReviewHistoryDto>> getReviewHistory(
     
     return ResponseEntity.ok(curatorService.getReviewHistory(curatorId, filters, pageable));
 }
+
+
+@GetMapping("/dashboard/stats")
+@Operation(
+    summary = "Obtener estadísticas del dashboard del curador",
+    description = """
+        Retorna las estadísticas principales para el dashboard del curador:
+        - Proyectos asignados
+        - Pendientes de revisión
+        - En revisión
+        - Completados este mes
+        - Tiempo promedio de revisión
+        - Proyectos vencidos
+        - Tasa de aprobación
+        - Tasa de puntualidad
+        """
+)
+public ResponseEntity<com.unimagdalena.conectaCiudad.Dto.curator.CuratorDashboardStatsDto> getCuratorDashboardStats() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long curatorId = (Long) auth.getDetails();
+    return ResponseEntity.ok(curatorDashboardService.getCuratorDashboardStats(curatorId));
+}
+
+
+@GetMapping("/dashboard/project-status")
+@Operation(
+    summary = "Obtener distribución de proyectos por estado",
+    description = """
+        Retorna la cantidad de proyectos asignados al curador agrupados por estado.
+        Incluye colores para visualización en gráficos.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.curator.CuratorProjectStatusDataDto>> getCuratorProjectStatusDistribution() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long curatorId = (Long) auth.getDetails();
+    return ResponseEntity.ok(curatorDashboardService.getCuratorProjectStatusDistribution(curatorId));
+}
+
+
+@GetMapping("/dashboard/review-trend")
+@Operation(
+    summary = "Obtener tendencia de revisiones",
+    description = """
+        Retorna la tendencia de revisiones del curador durante los últimos 6 meses.
+        Incluye desglose por resultado: aprobadas, devueltas, rechazadas.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.curator.CuratorReviewTrendDataDto>> getCuratorReviewTrend() {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long curatorId = (Long) auth.getDetails();
+    return ResponseEntity.ok(curatorDashboardService.getCuratorReviewTrend(curatorId));
+}
+
+
+@GetMapping("/dashboard/urgent-projects")
+@Operation(
+    summary = "Obtener proyectos urgentes",
+    description = """
+        Retorna los proyectos más urgentes que requieren revisión.
+        Ordenados por fecha de vencimiento, mostrando primero los vencidos.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.curator.UrgentProjectDataDto>> getUrgentProjects(
+    @Parameter(description = "Cantidad máxima de proyectos urgentes a retornar")
+    @RequestParam(defaultValue = "5") int limit
+) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long curatorId = (Long) auth.getDetails();
+    return ResponseEntity.ok(curatorDashboardService.getUrgentProjects(curatorId, limit));
+}
+
+
+@GetMapping("/dashboard/recent-activities")
+@Operation(
+    summary = "Obtener actividades recientes del curador",
+    description = """
+        Retorna las últimas revisiones completadas por el curador.
+        Incluye información del proyecto, acción realizada y resultado.
+        """
+)
+public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.curator.CuratorRecentActivityDto>> getCuratorRecentActivities(
+    @Parameter(description = "Cantidad máxima de actividades a retornar")
+    @RequestParam(defaultValue = "8") int limit
+) {
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    Long curatorId = (Long) auth.getDetails();
+    return ResponseEntity.ok(curatorDashboardService.getCuratorRecentActivities(curatorId, limit));
+}
+
 }

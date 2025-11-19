@@ -8,7 +8,6 @@ import com.unimagdalena.conectaCiudad.Dto.review.PendingReviewQueueDto;
 import com.unimagdalena.conectaCiudad.Dto.review.ReviewHistoryDto;
 import com.unimagdalena.conectaCiudad.Dto.review.ReviewHistoryFilterDto;
 import com.unimagdalena.conectaCiudad.Dto.review.ReviewHistoryPageDto;
-import com.unimagdalena.conectaCiudad.Dto.review.ReviewHistoryQueueDto;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;

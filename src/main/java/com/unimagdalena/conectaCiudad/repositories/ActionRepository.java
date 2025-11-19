@@ -14,4 +14,7 @@ public interface ActionRepository extends JpaRepository<Action, Long>,
                                           JpaSpecificationExecutor<Action> { 
     @Query("SELECT MAX(a.actionAt) FROM Action a WHERE a.user.id = :userId")
     OffsetDateTime findLastActionDateByUserId(@Param("userId") Long userId);
+    
+    @Query("SELECT a FROM Action a ORDER BY a.actionAt DESC")
+    org.springframework.data.domain.Page<Action> findRecentActions(org.springframework.data.domain.Pageable pageable);
 }

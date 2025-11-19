@@ -122,14 +122,20 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
             log.error("Error al registrar login exitoso: {}", e.getMessage(), e);
         }
 
+        List<String> roles = userEntity.getRoles()
+                .stream()
+                .map(r -> r.getName())
+                .toList();
+
         List<String> authorities = springUser.getAuthorities().stream()
         .map(a -> a.getAuthority())
         .toList();
         String token = Jwts.builder()
         .subject(springUser.getUsername())
         .claims(Map.of(
-                "authorities", authorities,  
-                "access_id", accessDto.id()
+            "roles", roles,
+            "authorities", authorities,  
+            "access_id", accessDto.id()
         ))
         .signWith(SECRET_KEY)
         .expiration(new Date(System.currentTimeMillis() + 3600000))
@@ -144,6 +150,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
                 "id", userEntity.getId(),
                 "name", userEntity.getName(),
                 "email", userEntity.getEmail(),
+                "roles", roles, 
                 "authorities", authorities 
         ));
         json.put("message", "Bienvenido " + userEntity.getName() + ", has iniciado sesión correctamente");

@@ -124,4 +124,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "AND UPPER(r.name) = 'CURATOR' " +
            "ORDER BY u.name ASC")
     List<User> findActiveCurators();
+    
+    @Query("SELECT COUNT(u) FROM User u " +
+           "WHERE EXTRACT(YEAR FROM u.createdAt) = EXTRACT(YEAR FROM CURRENT_DATE) " +
+           "AND EXTRACT(MONTH FROM u.createdAt) = EXTRACT(MONTH FROM CURRENT_DATE)")
+    long countUsersCreatedThisMonth();
+    
+    @Query("SELECT r.name, COUNT(u) FROM User u " +
+           "JOIN u.roles r " +
+           "GROUP BY r.name")
+    List<Object[]> countUsersByRole();
 }
