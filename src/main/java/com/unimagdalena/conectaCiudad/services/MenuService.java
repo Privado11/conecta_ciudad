@@ -145,13 +145,9 @@ public class MenuService {
     private List<MenuItemDto> createCitizenMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
         
-        List<MenuItemDto> projects = List.of(
-            new MenuItemDto("Explorar", "citizen/projects", "Search"),
-            new MenuItemDto("Mis Votaciones", "citizen/my-votes", "Vote")
-        );
-        menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projects));
+        menu.add(new MenuItemDto("Proyectos", "citizen/projects", "FolderKanban"));
         
-        menu.add(new MenuItemDto("Votar", "citizen/vote", "Vote"));
+        menu.add(new MenuItemDto("Mis Votaciones", "citizen/my-votes", "Vote"));
         
         return menu;
     }
