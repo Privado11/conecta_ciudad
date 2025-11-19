@@ -79,6 +79,7 @@ public class MenuService {
         }
 
         
+        menu.add(new MenuItemDto("Configuración", "/setting", "Settings"));
         
         menu.add(new MenuItemDto("Mi Perfil", "/profile", "User", false, 99, List.of()));
         
@@ -106,10 +107,6 @@ public class MenuService {
 
         menu.add(new MenuItemDto("Auditoría", "/admin/audit", "ShieldCheck"));
         
-        List<MenuItemDto> config = List.of(
-            new MenuItemDto("Seguridad", "/admin/config/security", "Lock")
-        );
-        menu.add(new MenuItemDto("Configuración", "#", "Settings", config));
         
         return menu;
     }
