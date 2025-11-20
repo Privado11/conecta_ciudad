@@ -17,9 +17,11 @@ public enum ProjectStatus {
 
     PUBLISHED("Published", "The project is visible for citizen voting"),
 
-    REJECTED("Rejected", "The project does not meet the required criteria"),
+    OPEN_FOR_VOTING("Open for Voting", "The project is open for citizen voting"),
 
-    VOTING_CLOSED("Voting Closed", "The voting period has ended");
+    VOTING_CLOSED("Voting Closed", "The voting period has ended"),
+
+    REJECTED("Rejected", "The project does not meet the required criteria");
 
     private final String displayName;
     private final String description;
@@ -42,6 +44,10 @@ public enum ProjectStatus {
     }
 
     public boolean isPublished() {
-        return this == PUBLISHED;
+        return this == PUBLISHED || this == OPEN_FOR_VOTING;
+    }
+
+    public boolean isVotingOpen() {
+        return this == OPEN_FOR_VOTING;
     }
 }

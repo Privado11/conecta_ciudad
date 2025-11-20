@@ -178,6 +178,28 @@ public class AuditHelper {
         }
     }
 
+    public void logSystemAction(String actionType, String description,
+                                EntityType entityType, Long entityId,
+                                ActionResult result, Map<String, Object> metadata) {
+        try {
+            ActionLogRequest logRequest = ActionLogRequest.builder()
+                    .actionType(actionType)
+                    .description(description)
+                    .entityType(entityType)
+                    .entityId(entityId)
+                    .result(result)
+                    .metadata(metadata)
+                    .userId(null)
+                    .accessId(null)
+                    .build();
+
+            actionService.logActionWithDetails(logRequest);
+            log.debug("Acción del sistema registrada: {} - {}", actionType, description);
+        } catch (Exception e) {
+            log.error("Error al registrar acción del sistema {}: {}", actionType, e.getMessage(), e);
+        }
+    }
+
     public void logFailure(String actionType, String description, String errorMessage) {
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("error", errorMessage);

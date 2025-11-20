@@ -177,16 +177,22 @@ public class LeaderServiceImpl implements LeaderService{
 
                 reviews = reviewRepository.findByProjectId(projectId);
                 if (reviews.isEmpty()) {
-                    throw new BadRequestException(
-                            "No hay curadores disponibles para asignar al proyecto"
-                    );
+                    Review emptyReview = Review.builder()
+                            .project(project)
+                            .curator(null)
+                            .startAt(null)
+                            .dueAt(null)
+                            .build();
+                    reviewRepository.save(emptyReview);
+                    review = emptyReview;
+                } else {
+                    review = reviews.get(0);
                 }
-                review = reviews.get(0);
             } else {
                 review = reviews.get(0);
                 if (project.getStatus() == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
                     review.setStartAt(OffsetDateTime.now());
-                    review.setDueAt(OffsetDateTime.now().plusDays(7));
+                    review.setDueAt(OffsetDateTime.now().plusDays(5));
                     review.setReviewedAt(null);
                     reviewRepository.save(review);
                 }
@@ -194,8 +200,15 @@ public class LeaderServiceImpl implements LeaderService{
 
 
             ProjectStatus oldStatus = project.getStatus();
-            project.setStatus(ProjectStatus.PENDING_REVIEW);
+
+            if (review.getCurator() != null) {
+                project.setStatus(ProjectStatus.IN_REVIEW);
+            } else {
+                project.setStatus(ProjectStatus.PENDING_REVIEW);
+            }
+
             Project updatedProject = projectRepository.save(project);
+
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("projectId", projectId);

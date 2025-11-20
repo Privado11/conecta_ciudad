@@ -114,10 +114,10 @@ public class MenuService {
     private List<MenuItemDto> createCuratorMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
         
-        menu.add(new MenuItemDto("Cola de Revisión", "curator/review/pending", "Clock"));
+        menu.add(new MenuItemDto("Cola de Revisión", "/curator/review/pending", "Clock"));
         
        
-        menu.add(new MenuItemDto("Historial", "curator/review/history", "History"));
+        menu.add(new MenuItemDto("Historial", "/curator/review/history", "History"));
         
        
         
@@ -128,16 +128,16 @@ public class MenuService {
         List<MenuItemDto> menu = new ArrayList<>();
         
         List<MenuItemDto> myProjects = List.of(
-            new MenuItemDto("Crear Proyecto", "lider/projects/create", "PlusCircle", true, 1, List.of()),
-            new MenuItemDto("En Revisión", "lider/projects/review", "Clock"),
-            new MenuItemDto("Publicados", "lider/projects/published", "Globe"),
-            new MenuItemDto("Devueltos", "lider/projects/returned", "RotateCcw"),
-            new MenuItemDto("Todos", "lider/projects/my-projects", "FolderOpen")
+            new MenuItemDto("Crear Proyecto", "/lider/projects/create", "PlusCircle", true, 1, List.of()),
+            new MenuItemDto("En Revisión", "/lider/projects/review", "Clock"),
+            new MenuItemDto("Publicados", "/lider/projects/published", "Globe"),
+            new MenuItemDto("Devueltos", "/lider/projects/returned", "RotateCcw"),
+            new MenuItemDto("Todos", "/lider/projects/my-projects", "FolderOpen")
         );
         menu.add(new MenuItemDto("Mis Proyectos", "#", "FolderKanban", myProjects));
         
-        menu.add(new MenuItemDto("Explorar Proyectos", "lider/projects/explore", "Search"));
-        menu.add(new MenuItemDto("Resultados", "lider/results", "BarChart3"));
+        menu.add(new MenuItemDto("Explorar Proyectos", "/lider/projects/explore", "Search"));
+        menu.add(new MenuItemDto("Resultados", "/lider/results", "BarChart3"));
         
         return menu;
     }
@@ -146,13 +146,13 @@ public class MenuService {
         List<MenuItemDto> menu = new ArrayList<>();
 
         List<MenuItemDto> projectsSubmenu = List.of(
-                new MenuItemDto("Proyectos en Votación", "citizen/projects/voting", "Vote"),
-                new MenuItemDto("Próximas Votaciones", "citizen/projects/upcoming", "Clock")
+                new MenuItemDto("Proyectos en Votación", "/citizen/projects/voting", "Vote"),
+                new MenuItemDto("Próximas Votaciones", "/citizen/projects/upcoming", "Clock")
         );
 
         menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projectsSubmenu));
 
-        menu.add(new MenuItemDto("Mis Votaciones", "citizen/my-votes", "CheckCircle"));
+        menu.add(new MenuItemDto("Mis Votaciones", "/citizen/my-votes", "CheckCircle"));
 
         return menu;
     }

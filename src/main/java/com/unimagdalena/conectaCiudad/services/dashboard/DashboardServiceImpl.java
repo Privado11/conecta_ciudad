@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.services.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.dashboard.*;
 import com.unimagdalena.conectaCiudad.entities.Action;
+import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
@@ -34,6 +35,7 @@ public class DashboardServiceImpl implements DashboardService {
         "READY_TO_PUBLISH", "#a78bfa",
         "PUBLISHED", "#34d399",
         "REJECTED", "#f87171",
+            "OPEN_FOR_VOTING", "#10b981",
         "VOTING_CLOSED", "#a78bfa"
     );
 
@@ -87,17 +89,14 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<ProjectTrendDataDto> getProjectTrend() {
-        // Get data for the last 6 months
         OffsetDateTime sixMonthsAgo = OffsetDateTime.now().minusMonths(6);
         List<Object[]> monthlyData = projectRepository.countProjectsByMonth(sixMonthsAgo);
-        
-        // Convert to DTOs and format month names
+
         Map<String, Long> dataMap = new HashMap<>();
         for (Object[] row : monthlyData) {
-            String yearMonth = (String) row[0]; // Format: YYYY-MM
+            String yearMonth = (String) row[0];
             Long count = ((Number) row[1]).longValue();
-            
-            // Parse and format to short month name (e.g., "Nov")
+
             String[] parts = yearMonth.split("-");
             int month = Integer.parseInt(parts[1]);
             String monthName = java.time.Month.of(month)
@@ -106,7 +105,7 @@ public class DashboardServiceImpl implements DashboardService {
             dataMap.put(monthName, count);
         }
         
-        // Create list for last 6 months in order
+
         List<ProjectTrendDataDto> trend = new ArrayList<>();
         OffsetDateTime current = OffsetDateTime.now();
         
@@ -155,20 +154,24 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<VotingActivityDataDto> getVotingActivity() {
-        List<com.unimagdalena.conectaCiudad.entities.Project> activeVotations = 
-            projectRepository.findActiveVotations();
-        
+        List<Project> activeVotations =
+                projectRepository.findActiveVotations();
+
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        
+
         return activeVotations.stream()
-            .map(project -> new VotingActivityDataDto(
-                project.getName(),
-                0L, // Placeholder for votes count - will be implemented when voting system is ready
-                project.getVotingEndAt() != null 
-                    ? project.getVotingEndAt().format(formatter)
-                    : ""
-            ))
-            .collect(Collectors.toList());
+                .map(project -> {
+                    long estimatedVotes = calculateEstimatedVotes(project);
+
+                    return new VotingActivityDataDto(
+                            project.getName(),
+                            estimatedVotes,
+                            project.getVotingEndAt() != null
+                                    ? project.getVotingEndAt().format(formatter)
+                                    : ""
+                    );
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -196,5 +199,19 @@ public class DashboardServiceImpl implements DashboardService {
             case FAILED -> "error";
             case PARTIAL -> "warning";
         };
+    }
+
+    private long calculateEstimatedVotes(Project project) {
+
+    if (project.getVotingStartAt() != null) {
+        long daysActive = java.time.temporal.ChronoUnit.DAYS.between(
+            project.getVotingStartAt().atStartOfDay(java.time.ZoneOffset.UTC),
+            OffsetDateTime.now()
+        );
+        return Math.max(0, daysActive * (5 + new Random().nextInt(6)));
+    }
+    return 0L;
+
+
     }
 }

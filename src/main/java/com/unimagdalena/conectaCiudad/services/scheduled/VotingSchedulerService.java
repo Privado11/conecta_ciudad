@@ -1,6 +1,8 @@
 package com.unimagdalena.conectaCiudad.services.scheduled;
 
 import com.unimagdalena.conectaCiudad.entities.Project;
+import com.unimagdalena.conectaCiudad.enums.ActionResult;
+import com.unimagdalena.conectaCiudad.enums.EntityType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
@@ -22,8 +24,44 @@ public class VotingSchedulerService {
     private final ProjectRepository projectRepository;
     private final AuditHelper auditHelper;
 
+    @Scheduled(cron = "0 0 0 * * *")
+    public void openVotingAtStartDate() {
+        LocalDate today = LocalDate.now();
 
-    @Scheduled(cron = "0 01 0 * * *")
+        List<Project> projectsToOpen = projectRepository.findProjectsToOpenVoting(today);
+
+        if (projectsToOpen.isEmpty()) {
+            return;
+        }
+
+        for (Project project : projectsToOpen) {
+
+            ProjectStatus oldStatus = project.getStatus();
+            project.setStatus(ProjectStatus.OPEN_FOR_VOTING);
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("oldStatus", oldStatus.toString());
+            metadata.put("newStatus", ProjectStatus.OPEN_FOR_VOTING.toString());
+            metadata.put("votingStartAt", project.getVotingStartAt().toString());
+            metadata.put("autoScheduler", true);
+
+            auditHelper.logSystemAction(
+                    "VOTING_AUTO_OPEN",
+                    "El sistema abrió automáticamente la votación del proyecto",
+                    EntityType.PROJECT,
+                    project.getId(),
+                    ActionResult.SUCCESS,
+                    metadata
+            );
+        }
+
+        projectRepository.saveAll(projectsToOpen);
+
+        log.info("Se abrieron automáticamente {} votaciones.", projectsToOpen.size());
+    }
+
+
+    @Scheduled(cron = "0 00 0 * * *")
     public void closeExpiredVotations() {
         LocalDate today = LocalDate.now();
 
@@ -45,18 +83,18 @@ public class VotingSchedulerService {
             metadata.put("votingEndAt", p.getVotingEndAt().toString());
             metadata.put("autoScheduler", true);
 
-            auditHelper.logComplete(
+            auditHelper.logSystemAction(
                     "VOTING_AUTO_CLOSE",
                     "El sistema cerró automáticamente la votación del proyecto",
-                    com.unimagdalena.conectaCiudad.enums.EntityType.PROJECT,
+                    EntityType.PROJECT,
                     p.getId(),
-                    com.unimagdalena.conectaCiudad.enums.ActionResult.SUCCESS,
+                    ActionResult.SUCCESS,
                     metadata
             );
         }
 
         projectRepository.saveAll(expiredProjects);
 
-        log.info("⚙️ Se marcaron automáticamente {} votaciones como cerradas.", expiredProjects.size());
+        log.info("Se marcaron automáticamente {} votaciones como cerradas.", expiredProjects.size());
     }
 }

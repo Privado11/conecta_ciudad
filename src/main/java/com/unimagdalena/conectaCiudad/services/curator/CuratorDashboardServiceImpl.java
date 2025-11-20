@@ -4,8 +4,6 @@ import com.unimagdalena.conectaCiudad.Dto.curator.*;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
-import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
-import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -24,13 +22,12 @@ import java.util.stream.Collectors;
 public class CuratorDashboardServiceImpl implements CuratorDashboardService {
 
     private final ReviewRepository reviewRepository;
-    private final ProjectRepository projectRepository;
-    private final ActionRepository actionRepository;
+
 
     private static final Map<String, String> STATUS_COLORS = Map.of(
         "PENDING_REVIEW", "#fbbf24",
         "IN_REVIEW", "#60a5fa",
-        "READY_TO_PUBLISH", "#a78bfa",
+        "READY_TO_PUBLISH", "#34D399",
         "PUBLISHED", "#34d399",
         "RETURNED_WITH_OBSERVATIONS", "#f97316"
     );
@@ -42,22 +39,20 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
         long completedThisMonth = reviewRepository.countCompletedThisMonth(curatorId);
         long overdueProjects = reviewRepository.countOverdueReviews(curatorId);
         
-        // Calculate in review (pending but not overdue)
+
         long inReview = pendingReview - overdueProjects;
         
-        // Average review time
+
         Double avgTime = reviewRepository.getAverageReviewTimeInDays(curatorId);
         double averageReviewTime = avgTime != null ? Math.round(avgTime * 10.0) / 10.0 : 0.0;
-        
-        // Calculate approval rate and on-time rate
+
         long totalCompleted = reviewRepository.countByCuratorIdAndReviewedAtIsNotNull(curatorId);
-        
-        // Get approved projects (status READY_TO_PUBLISH or PUBLISHED)
+
         List<Review> completedReviews = reviewRepository.findByCuratorIdAndReviewedAtIsNotNull(curatorId);
         long approvedCount = completedReviews.stream()
             .filter(r -> {
                 ProjectStatus status = r.getProject().getStatus();
-                return status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED;
+                return status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED  || status == ProjectStatus.OPEN_FOR_VOTING || status == ProjectStatus.VOTING_CLOSED;
             })
             .count();
         
@@ -65,7 +60,7 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
             ? Math.round((approvedCount * 100.0 / totalCompleted) * 10.0) / 10.0 
             : 0.0;
         
-        // Calculate on-time rate (completed before due date)
+
         long onTimeCount = completedReviews.stream()
             .filter(r -> r.getReviewedAt() != null && r.getReviewedAt().isBefore(r.getDueAt()))
             .count();
@@ -89,31 +84,39 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
     @Override
     public List<CuratorProjectStatusDataDto> getCuratorProjectStatusDistribution(Long curatorId) {
         List<Review> reviews = reviewRepository.findByCuratorId(curatorId);
-        
+
+        Set<ProjectStatus> groupedStatuses = Set.of(
+                ProjectStatus.READY_TO_PUBLISH,
+                ProjectStatus.OPEN_FOR_VOTING,
+                ProjectStatus.VOTING_CLOSED
+        );
+
         Map<ProjectStatus, Long> statusCounts = reviews.stream()
-            .collect(Collectors.groupingBy(
-                r -> r.getProject().getStatus(),
-                Collectors.counting()
-            ));
-        
+                .collect(Collectors.groupingBy(
+                        r -> {
+                            ProjectStatus status = r.getProject().getStatus();
+                            return groupedStatuses.contains(status)
+                                    ? ProjectStatus.READY_TO_PUBLISH
+                                    : status;
+                        },
+                        Collectors.counting()
+                ));
+
         return statusCounts.entrySet().stream()
-            .map(entry -> {
-                String statusName = entry.getKey().name();
-                String color = STATUS_COLORS.getOrDefault(statusName, "#6b7280");
-                return new CuratorProjectStatusDataDto(statusName, entry.getValue(), color);
-            })
-            .collect(Collectors.toList());
+                .map(entry -> {
+                    String statusName = entry.getKey().name();
+                    String color = STATUS_COLORS.getOrDefault(statusName, "#6b7280");
+                    return new CuratorProjectStatusDataDto(statusName, entry.getValue(), color);
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
     public List<CuratorReviewTrendDataDto> getCuratorReviewTrend(Long curatorId) {
         OffsetDateTime sixMonthsAgo = OffsetDateTime.now().minusMonths(6);
         List<Object[]> monthlyData = reviewRepository.countReviewsByMonth(curatorId, sixMonthsAgo);
-        
-        // Get all completed reviews for detailed breakdown
         List<Review> completedReviews = reviewRepository.findByCuratorIdAndReviewedAtIsNotNull(curatorId);
-        
-        // Group by month and status
+
         Map<String, Map<String, Long>> monthlyBreakdown = new HashMap<>();
         
         for (Review review : completedReviews) {
@@ -124,17 +127,14 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
                 monthlyBreakdown.putIfAbsent(monthKey, new HashMap<>());
                 Map<String, Long> statusCounts = monthlyBreakdown.get(monthKey);
                 
-                if (status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED) {
+                if (status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED || status == ProjectStatus.OPEN_FOR_VOTING || status == ProjectStatus.VOTING_CLOSED) {
                     statusCounts.merge("approved", 1L, Long::sum);
                 } else if (status == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
                     statusCounts.merge("returned", 1L, Long::sum);
-                } else if (status == ProjectStatus.REJECTED) {
-                    statusCounts.merge("rejected", 1L, Long::sum);
                 }
             }
         }
-        
-        // Create list for last 6 months
+
         List<CuratorReviewTrendDataDto> trend = new ArrayList<>();
         OffsetDateTime current = OffsetDateTime.now();
         
@@ -148,9 +148,9 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
             long reviewed = statusCounts.values().stream().mapToLong(Long::longValue).sum();
             long approved = statusCounts.getOrDefault("approved", 0L);
             long returned = statusCounts.getOrDefault("returned", 0L);
-            long rejected = statusCounts.getOrDefault("rejected", 0L);
+
             
-            trend.add(new CuratorReviewTrendDataDto(monthName, reviewed, approved, returned, rejected));
+            trend.add(new CuratorReviewTrendDataDto(monthName, reviewed, approved, returned));
         }
         
         return trend;
@@ -172,8 +172,7 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
                 long daysInReview = ChronoUnit.DAYS.between(review.getStartAt(), now);
                 long daysUntilDue = ChronoUnit.DAYS.between(now, review.getDueAt());
                 boolean isOverdue = daysUntilDue < 0;
-                
-                // Determine priority level
+
                 String priorityLevel;
                 if (isOverdue) {
                     priorityLevel = "CRÍTICA";
@@ -202,7 +201,6 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
 
     @Override
     public List<CuratorRecentActivityDto> getCuratorRecentActivities(Long curatorId, int limit) {
-        // Get recent completed reviews
         List<Review> recentReviews = reviewRepository.findByCuratorIdAndReviewedAtIsNotNull(curatorId);
         
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -218,16 +216,14 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
                 String action;
                 String outcome;
                 
-                if (status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED) {
+                if (status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED  || status == ProjectStatus.OPEN_FOR_VOTING || status == ProjectStatus.VOTING_CLOSED) {
                     action = "Aprobó proyecto para votación";
                     outcome = "APROBADO";
                 } else if (status == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
                     action = "Devolvió proyecto con observaciones";
                     outcome = "DEVUELTO";
-                } else if (status == ProjectStatus.REJECTED) {
-                    action = "Rechazó proyecto por incumplimiento";
-                    outcome = "RECHAZADO";
-                } else if (status == ProjectStatus.IN_REVIEW) {
+                }
+                 else if (status == ProjectStatus.IN_REVIEW) {
                     action = "Inició revisión del proyecto";
                     outcome = "EN_REVISION";
                 } else {

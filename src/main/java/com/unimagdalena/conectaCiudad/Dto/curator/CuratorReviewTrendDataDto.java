@@ -4,6 +4,5 @@ public record CuratorReviewTrendDataDto(
     String month,
     Long reviewed,
     Long approved,
-    Long returned,
-    Long rejected
+    Long returned
 ) {}

@@ -8,6 +8,7 @@ import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.services.admin.AdminService;
+import com.unimagdalena.conectaCiudad.services.dashboard.DashboardService;
 import com.unimagdalena.conectaCiudad.services.user.UserService;
 import com.unimagdalena.conectaCiudad.validation.OnCreate;
 import com.unimagdalena.conectaCiudad.validation.OnUpdate;
@@ -54,7 +55,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final UserService userService;
-    private final com.unimagdalena.conectaCiudad.services.dashboard.DashboardService dashboardService;
+    private final DashboardService dashboardService;
     private static final int MAX_PAGE_SIZE = 100;
 
 
