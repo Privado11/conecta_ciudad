@@ -152,7 +152,12 @@ public class MenuService {
 
         menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projectsSubmenu));
 
-        menu.add(new MenuItemDto("Mis Votaciones", "/citizen/my-votes", "CheckCircle"));
+        List<MenuItemDto> votationsSubmenu = List.of(
+                new MenuItemDto("Mis Votaciones", "citizen/my-votes", "FileCheck"),
+                new MenuItemDto("Resultados", "/citizen/projects/upcoming", "BarChart3")
+        );
+
+        menu.add(new MenuItemDto("Votaciones", "#", "Vote", votationsSubmenu));
 
         return menu;
     }

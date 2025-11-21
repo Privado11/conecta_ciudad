@@ -135,7 +135,8 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         .claims(Map.of(
             "roles", roles,
             "authorities", authorities,  
-            "access_id", accessDto.id()
+            "access_id", accessDto.id(),
+                "user_id", userEntity.getId()
         ))
         .signWith(SECRET_KEY)
         .expiration(new Date(System.currentTimeMillis() + 3600000))
