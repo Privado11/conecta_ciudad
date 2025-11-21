@@ -36,9 +36,6 @@ import jakarta.validation.Valid;
 )
 public class CitizenActionController {
 
-  
-
-    @PreAuthorize("hasAuthority('CITIZEN_ACTION_CREATE')")
     @PostMapping
     @Operation(
         summary = "Registrar una acción de participación ciudadana",
