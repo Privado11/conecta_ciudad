@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.unimagdalena.conectaCiudad.Dto.project.*;
+import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
+import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import org.springframework.stereotype.Service;
 
 import com.unimagdalena.conectaCiudad.entities.Project;
@@ -19,11 +21,12 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class ProjectServiceImpl implements ProjectService {
-    
+
     private final ProjectRepository projectRepository;
     private final ProjectMapper projectMapper;
     private final ProjectReadyMapper projectReadyMapper;
     private final ProjectVotingMapper projectVotingMapper;
+    private final VotingClient votingClient;
 
 
     public ProjectDto findById(Long id) {
@@ -50,11 +53,13 @@ public class ProjectServiceImpl implements ProjectService {
     }
 
     @Override
-    public List<ProjectVotingDto> findOpenForVoting() {
+    public List<ProjectVotingDto> findOpenForVoting(Long citizenId, String token) {
         LocalDate today = LocalDate.now();
         return projectRepository.findOpenForVoting(today)
-            .stream()
-            .map(projectVotingMapper::toDto)
-            .toList();
+                .stream()
+                .map(project -> projectVotingMapper.toDto(project, citizenId, token))
+                .toList();
     }
+
+
 }

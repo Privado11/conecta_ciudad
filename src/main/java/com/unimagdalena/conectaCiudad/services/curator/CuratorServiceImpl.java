@@ -195,7 +195,7 @@ public class CuratorServiceImpl implements CuratorService {
         
         List<PendingReviewDto> reviews = pendingReviews.stream()
                 .filter(review -> review.getProject() != null)
-                .filter(review -> review.getProject().getStatus() == ProjectStatus.PENDING_REVIEW)
+                .filter(review -> review.getProject().getStatus() == ProjectStatus.IN_REVIEW)
                 .map(review -> buildPendingReviewDto(review, now))
                 .sorted(Comparator
                         .comparing(PendingReviewDto::isOverdue).reversed()

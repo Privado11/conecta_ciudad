@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
+import com.unimagdalena.conectaCiudad.Dto.dashboard.VotingActivityDataDto;
 import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
@@ -1261,8 +1262,16 @@ public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboar
         de votación (votingStartAt y votingEndAt) incluyen la fecha actual.
         """
 )
-public ResponseEntity<java.util.List<com.unimagdalena.conectaCiudad.Dto.dashboard.VotingActivityDataDto>> getVotingActivity() {
-    return ResponseEntity.ok(dashboardService.getVotingActivity());
+public ResponseEntity<java.util.List<VotingActivityDataDto>> getVotingActivity(HttpServletRequest request) {
+    String token = extractToken(request);
+    return ResponseEntity.ok(dashboardService.getVotingActivity(token));
 }
 
+    private String extractToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
+    }
 }

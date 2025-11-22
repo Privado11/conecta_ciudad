@@ -1,6 +1,7 @@
 package com.unimagdalena.conectaCiudad.services.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.dashboard.*;
+import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Action;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
@@ -9,6 +10,7 @@ import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import java.time.format.TextStyle;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
@@ -26,6 +29,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final ActionRepository actionRepository;
+    private final VotingClient votingClient;
 
     private static final Map<String, String> STATUS_COLORS = Map.of(
         "DRAFT", "#94a3b8",
@@ -153,19 +157,20 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public List<VotingActivityDataDto> getVotingActivity() {
-        List<Project> activeVotations =
-                projectRepository.findActiveVotations();
-
+    public List<VotingActivityDataDto> getVotingActivity(String token) {
+        List<Project> activeVotations = projectRepository.findActiveVotations();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
         return activeVotations.stream()
                 .map(project -> {
-                    long estimatedVotes = calculateEstimatedVotes(project);
+                    long realVotes = votingClient.getProjectVotesCount(project.getId(), token);
+
+                    log.debug("Proyecto '{}' (ID: {}) tiene {} votos reales",
+                            project.getName(), project.getId(), realVotes);
 
                     return new VotingActivityDataDto(
                             project.getName(),
-                            estimatedVotes,
+                            realVotes,
                             project.getVotingEndAt() != null
                                     ? project.getVotingEndAt().format(formatter)
                                     : ""

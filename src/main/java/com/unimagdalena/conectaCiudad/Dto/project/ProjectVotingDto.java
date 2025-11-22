@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.Dto.project;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
@@ -22,7 +23,8 @@ public record ProjectVotingDto(
     ProjectStatus status,
     UserDto creator,
     Long version,
-    VotingActiveInfo votingInfo
+    VotingActiveInfo votingInfo,
+    UserVotingStatus userVotingStatus
 ) {
     public record VotingActiveInfo(
         boolean isOpen,
@@ -33,5 +35,12 @@ public record ProjectVotingDto(
         Double progressPercentage,
         String urgencyLevel, 
         String statusMessage
+    ) {}
+
+    public record UserVotingStatus(
+            boolean hasVoted,
+            Boolean voteDecision,
+            LocalDateTime votedAt,
+            String message
     ) {}
 }

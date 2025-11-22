@@ -1,6 +1,9 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
@@ -98,13 +101,25 @@ public class ProjectController {
         @ApiResponse(responseCode = "200", description = "Lista de proyectos abiertos a votación"),
         @ApiResponse(responseCode = "204", description = "No hay proyectos abiertos actualmente")
     })
-    public ResponseEntity<List<ProjectVotingDto>> getOpenForVoting() {
-        List<ProjectVotingDto> projects = projectService.findOpenForVoting();
-        
+    public ResponseEntity<List<ProjectVotingDto>> getOpenForVoting(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String token = extractToken(request);
+        Long citizenId = (Long) auth.getDetails();
+        List<ProjectVotingDto> projects = projectService.findOpenForVoting(citizenId, token);
+
         if (projects.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
-        
+
         return ResponseEntity.ok(projects);
     }
+
+    private String extractToken(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
+    }
+
 }

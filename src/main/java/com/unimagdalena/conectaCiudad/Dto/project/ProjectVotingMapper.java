@@ -1,6 +1,8 @@
 package com.unimagdalena.conectaCiudad.Dto.project;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
+import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
+import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -8,14 +10,16 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
 public class ProjectVotingMapper {
 
     private final UserMapper userMapper;
+    private final VotingClient votingClient;
 
-    public ProjectVotingDto toDto(Project project) {
+    public ProjectVotingDto toDto(Project project, Long citizenId, String token) {
         return new ProjectVotingDto(
                 project.getId(),
                 project.getName(),
@@ -31,7 +35,8 @@ public class ProjectVotingMapper {
                 project.getStatus(),
                 userMapper.toDto(project.getCreator()),
                 project.getVersion(),
-                calculateVotingInfo(project)
+                calculateVotingInfo(project),
+                getUserVotingStatus(project.getId(), citizenId, token)
         );
     }
 
@@ -42,7 +47,6 @@ public class ProjectVotingMapper {
         LocalDate votingStart = project.getVotingStartAt();
         LocalDate votingEnd = project.getVotingEndAt();
 
-        // Si la votación ya cerró, no debería llegar aquí
         if (votingEnd.isBefore(today)) {
             return new ProjectVotingDto.VotingActiveInfo(
                     false,
@@ -111,6 +115,34 @@ public class ProjectVotingMapper {
                 progress,
                 urgencyLevel,
                 statusMessage
+        );
+    }
+
+    private ProjectVotingDto.UserVotingStatus getUserVotingStatus(Long projectId, Long citizenId, String token) {
+        if (citizenId == null) {
+            return new ProjectVotingDto.UserVotingStatus(
+                    false, null, null, "Usuario no autenticado"
+            );
+        }
+
+        List<VoteDto> votes =  votingClient.getUserVotes(projectId, citizenId, token);
+
+        if (votes.isEmpty()) {
+            return new ProjectVotingDto.UserVotingStatus(
+                    false, null, null, "Aún no has votado en este proyecto"
+            );
+        }
+
+        VoteDto vote = votes.get(0);
+        String message = vote.decision() ?
+                "Ya votaste A FAVOR de este proyecto" :
+                "Ya votaste EN CONTRA de este proyecto";
+
+        return new ProjectVotingDto.UserVotingStatus(
+                true,
+                vote.decision(),
+                vote.fechaHora(),
+                message
         );
     }
 }

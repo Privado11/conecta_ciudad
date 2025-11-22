@@ -17,7 +17,7 @@ public interface DashboardService {
     List<RecentActivityDto> getRecentActivities(int limit);
     
  
-    List<VotingActivityDataDto> getVotingActivity();
+    List<VotingActivityDataDto> getVotingActivity(String token);
     
     List<UserRoleDistributionDto> getUserRoleDistribution();
 }

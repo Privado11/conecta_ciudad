@@ -11,5 +11,6 @@ public interface ProjectService {
     ProjectDto findById(Long id);
     List<ProjectDto> findReadyToPublish();
     List<ProjectReadyDto> findReadyToPublishNotOpen();
-    List<ProjectVotingDto> findOpenForVoting();
+    List<ProjectVotingDto> findOpenForVoting(Long citizenId, String token);
+
 }
