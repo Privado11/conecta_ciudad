@@ -19,6 +19,10 @@ public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpec
 
     long countByCreatorId(Long creatorId);
 
+    List<Project> findByCreatorId(Long creatorId);
+
+    List<Project> findByCreatorIdAndStatus(Long creatorId, ProjectStatus status);
+
     @Query("SELECT COUNT(p) FROM Project p WHERE p.creator.id = :creatorId AND p.status = :status")
     long countByCreatorIdAndStatus(
             @Param("creatorId") Long creatorId,

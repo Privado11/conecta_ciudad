@@ -1,8 +1,11 @@
 package com.unimagdalena.conectaCiudad.services.leader;
 
+import com.unimagdalena.conectaCiudad.Dto.leader.ProjectVotingResultDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.VotingResultsDto;
+import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
@@ -24,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +38,7 @@ public class LeaderServiceImpl implements LeaderService{
     private final UserRepository userRepository;
     private final ProjectMapper projectMapper;
     private final ReviewRepository reviewRepository;
+    private final VotingClient votingClient;
 
     @Override
     public ProjectDto createProject(ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
@@ -242,6 +247,50 @@ public class LeaderServiceImpl implements LeaderService{
         }
     }
 
+    @Override
+    public List<ProjectDto> getMyProjects(Long creatorId) {
+        List<Project> projects = projectRepository.findByCreatorId(creatorId);
+        return projects.stream()
+                .map(projectMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ProjectVotingResultDto> getMyClosedVotingResults(Long creatorId, String token) {
+        List<Project> closedProjects = projectRepository.findByCreatorIdAndStatus(
+                creatorId,
+                ProjectStatus.VOTING_CLOSED
+        );
+
+        return closedProjects.stream()
+                .map(project -> {
+                    VotingResultsDto results = votingClient.getProjectVotingResults(
+                            project.getId(),
+                            token
+                    );
+
+                    long votesInFavor = results != null ? results.votesInFavor() : 0L;
+                    long votesAgainst = results != null ? results.votesAgainst() : 0L;
+                    long totalVotes = votesInFavor + votesAgainst;
+                    double approvalPercentage = totalVotes > 0 ? (votesInFavor * 100.0 / totalVotes) : 0.0;
+                    String finalResult = approvalPercentage > 50.0 ? "APPROVED" : "REJECTED";
+
+                    return new ProjectVotingResultDto(
+                            project.getId(),
+                            project.getName(),
+                            project.getDescription(),
+                            project.getVotingStartAt(),
+                            project.getVotingEndAt(),
+                            project.getUpdatedAt(),
+                            votesInFavor,
+                            votesAgainst,
+                            totalVotes,
+                            approvalPercentage,
+                            finalResult
+                    );
+                })
+                .collect(Collectors.toList());
+    }
 
 
     private void validateProjectDates(LocalDate startAt, LocalDate endAt) {

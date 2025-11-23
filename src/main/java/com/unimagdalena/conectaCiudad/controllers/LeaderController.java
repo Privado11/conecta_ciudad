@@ -1,6 +1,6 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
-
+import com.unimagdalena.conectaCiudad.Dto.leader.ProjectVotingResultDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
 import com.unimagdalena.conectaCiudad.services.leader.LeaderService;
@@ -19,6 +19,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/leader")
 @RequiredArgsConstructor
@@ -29,6 +31,79 @@ import org.springframework.web.bind.annotation.*;
 
 public class LeaderController {
     private final LeaderService leaderService;
+
+    @PreAuthorize("hasAuthority('PROJECT_VIEW')")
+    @GetMapping("/projects")
+    @Operation(
+            summary = "Obtener todos mis proyectos",
+            description = """
+            Retorna todos los proyectos creados por el líder comunitario autenticado.
+            
+            **Información incluida:**
+            - Datos completos del proyecto
+            - Estado actual del proyecto
+            - Información del creador
+            - Historial de revisiones (si existen)
+            
+            **Permisos requeridos:** PROJECT_VIEW
+            """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Lista de proyectos obtenida exitosamente",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ProjectDto.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    public ResponseEntity<List<ProjectDto>> getMyProjects(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long creatorId = (Long) auth.getDetails();
+        return ResponseEntity.ok(leaderService.getMyProjects(creatorId));
+    }
+
+    @PreAuthorize("hasAuthority('PROJECT_VIEW')")
+    @GetMapping("/projects/voting-results")
+    @Operation(
+            summary = "Obtener resultados de votación de mis proyectos cerrados",
+            description = """
+            Retorna los resultados de votación de todos los proyectos del líder 
+            que tienen votación cerrada (estado VOTING_CLOSED).
+            
+            **Información incluida:**
+            - Datos básicos del proyecto
+            - Fechas de inicio y fin de votación
+            - Conteo de votos (a favor, en contra, total)
+            - Porcentaje de aprobación
+            - Resultado final (APPROVED o REJECTED)
+            
+            **Criterio de aprobación:** > 50% de votos a favor
+            
+            **Permisos requeridos:** PROJECT_VIEW
+            """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Resultados de votación obtenidos exitosamente",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = ProjectVotingResultDto.class)
+                    )
+            ),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Sin permisos")
+    })
+    public ResponseEntity<List<ProjectVotingResultDto>> getMyVotingResults(HttpServletRequest request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Long creatorId = (Long) auth.getDetails();
+        String token = extractToken(request);
+        return ResponseEntity.ok(leaderService.getMyClosedVotingResults(creatorId, token));
+    }
 
     @PreAuthorize("hasAuthority('PROJECT_CREATE')")
     @PostMapping("/projects")
@@ -174,5 +249,12 @@ public class LeaderController {
         return ResponseEntity.ok("Project deleted successfully");
     }
 
+    private String extractToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+        return null;
+    }
 
 }
