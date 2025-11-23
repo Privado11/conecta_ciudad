@@ -36,6 +36,8 @@ public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpec
 
     Page<Project> findByStatus(ProjectStatus status, Pageable pageable);
 
+    Page<Project> findByStatusIn(List<ProjectStatus> statuses, Pageable pageable);
+
     long countByStatus(ProjectStatus status);
 
     @Query("SELECT TO_CHAR(p.createdAt, 'YYYY-MM') as month, COUNT(p) as count " +

@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
+import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
 import com.unimagdalena.conectaCiudad.services.voting.VotingService;
@@ -12,7 +13,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -191,6 +191,47 @@ public class VotingController {
     public ResponseEntity<List<VotingProjectDto>> getClosedVotingProjects(HttpServletRequest request) {
         String token = extractToken(request);
         return ResponseEntity.ok(votingService.getClosedVotingProjects(token));
+    }
+
+  
+    @GetMapping("/my-votes")
+    @Operation(
+            summary = "Obtener historial de votaciones del usuario",
+            description = """
+                    Retorna el historial completo de votaciones del usuario autenticado.
+                    
+                    **Información incluida:**
+                    - Datos del proyecto votado
+                    - Decisión del voto (a favor o en contra)
+                    - Fecha y hora del voto
+                    - Hash de verificación del voto
+                    - Estado actual del proyecto
+                    - Resultados finales si la votación está cerrada
+                    - Porcentaje de aprobación
+                    
+                    **Ordenamiento:** Los votos más recientes aparecen primero
+                    
+                    **Permisos requeridos:** Usuario autenticado (cualquier rol)
+                    """
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Historial de votaciones obtenido exitosamente",
+                    content = @Content(
+                            mediaType = "application/json",
+                            schema = @Schema(implementation = UserVoteHistoryDto.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "No autenticado - Se requiere token de autenticación",
+                    content = @Content
+            )
+    })
+    public ResponseEntity<List<UserVoteHistoryDto>> getUserVotingHistory(HttpServletRequest request) {
+        String token = extractToken(request);
+        return ResponseEntity.ok(votingService.getUserVotingHistory(token));
     }
 
     private String extractToken(HttpServletRequest request) {

@@ -1,6 +1,8 @@
 package com.unimagdalena.conectaCiudad.services.voting;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingResultsDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
@@ -116,7 +118,7 @@ public class VotingServiceImpl implements VotingService {
         List<Project> openProjects = projectRepository.findByStatus(ProjectStatus.OPEN_FOR_VOTING, 
                 org.springframework.data.domain.Pageable.unpaged()).getContent();
         
-        // Sort ascending by votingEndAt (closing soonest first)
+      
         return openProjects.stream()
                 .sorted((p1, p2) -> {
                     if (p1.getVotingEndAt() == null) return 1;
@@ -134,7 +136,7 @@ public class VotingServiceImpl implements VotingService {
         List<Project> closedProjects = projectRepository.findByStatus(ProjectStatus.VOTING_CLOSED, 
                 org.springframework.data.domain.Pageable.unpaged()).getContent();
         
-        // Sort descending by votingEndAt (most recently closed first)
+       
         return closedProjects.stream()
                 .sorted((p1, p2) -> {
                     if (p1.getVotingEndAt() == null) return 1;
@@ -251,4 +253,76 @@ public class VotingServiceImpl implements VotingService {
             return null;
         }
     }
+
+    @Override
+    public List<UserVoteHistoryDto> getUserVotingHistory(String token) {
+        log.debug("Fetching voting history for authenticated user");
+        
+
+        List<Project> votingProjects = projectRepository.findByStatusIn(
+                List.of(ProjectStatus.OPEN_FOR_VOTING, ProjectStatus.VOTING_CLOSED),
+                Pageable.unpaged()
+        ).getContent();
+        
+        log.debug("Found {} projects with voting status", votingProjects.size());
+        
+  
+        List<UserVoteHistoryDto> userVotes = votingProjects.stream()
+                .map(project -> {
+                    try {
+                       
+                        VoteDto vote = votingClient.getUserVoteForProject(project.getId(), token);
+                        
+                        if (vote != null) {
+                          
+                            VotingResultsDto results = getVotingResults(project.getId(), token);
+                            
+                            long votesInFavor = results != null ? results.votesInFavor() : 0L;
+                            long votesAgainst = results != null ? results.votesAgainst() : 0L;
+                            long totalVotes = votesInFavor + votesAgainst;
+                            
+                            double approvalPercentage = totalVotes > 0 ? (votesInFavor * 100.0 / totalVotes) : 0.0;
+                            
+                           
+                            String votingStatus = project.getStatus() == ProjectStatus.OPEN_FOR_VOTING ? "OPEN" : "CLOSED";
+                            
+                            
+                            String finalResult = null;
+                            if ("CLOSED".equals(votingStatus)) {
+                                finalResult = approvalPercentage > 50.0 ? "APPROVED" : "REJECTED";
+                            }
+                            
+                            return new UserVoteHistoryDto(
+                                    vote.id(),
+                                    project.getId(),
+                                    project.getName(),
+                                    project.getDescription(),
+                                    project.getVotingStartAt(),
+                                    project.getVotingEndAt(),
+                                    vote.fechaHora(),
+                                    vote.decision(),
+                                    vote.hashVerificacion(),
+                                    project.getStatus(),
+                                    votingStatus,
+                                    finalResult,
+                                    totalVotes,
+                                    votesInFavor,
+                                    votesAgainst,
+                                    approvalPercentage
+                            );
+                        }
+                        return null;
+                    } catch (Exception e) {
+                        log.warn("Error processing vote for project {}: {}", project.getId(), e.getMessage());
+                        return null;
+                    }
+                })
+                .filter(vote -> vote != null)
+                .sorted((v1, v2) -> v2.voteDate().compareTo(v1.voteDate())) 
+                .collect(Collectors.toList());
+        
+        log.debug("Found {} votes for user", userVotes.size());
+        return userVotes;
+    }
 }
+

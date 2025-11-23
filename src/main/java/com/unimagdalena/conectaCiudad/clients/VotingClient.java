@@ -169,4 +169,57 @@ public class VotingClient {
             return null;
         }
     }
+
+  
+    public VoteDto getUserVoteForProject(Long projectId, String token) {
+        try {
+            String url = String.format("%s/votaciones/%d/mis-votos",
+                    VOTING_BASE_URL, projectId);
+
+            log.debug("Consultando voto del usuario para proyecto {}", projectId);
+
+            HttpHeaders headers = new HttpHeaders();
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
+            } else {
+                log.warn("No se envía token para obtener voto del proyecto {}", projectId);
+            }
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<VoteDto> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    VoteDto.class
+            );
+
+            VoteDto vote = response.getBody();
+
+            if (vote != null) {
+                log.debug("Usuario votó {} en proyecto {}", 
+                        vote.decision() ? "A FAVOR" : "EN CONTRA", projectId);
+                return vote;
+            }
+
+            log.debug("No se encontró voto del usuario para proyecto {}", projectId);
+            return null;
+
+        } catch (HttpClientErrorException.NotFound e) {
+            log.debug("Usuario no ha votado en proyecto {}", projectId);
+            return null;
+        } catch (HttpClientErrorException e) {
+            log.error("Error HTTP al obtener voto del proyecto {}: {}",
+                    projectId, e.getMessage());
+            return null;
+        } catch (RestClientException e) {
+            log.error("Error de conexión al obtener voto del proyecto {}: {}",
+                    projectId, e.getMessage());
+            return null;
+        } catch (Exception e) {
+            log.error("Error inesperado al obtener voto del proyecto {}: {}",
+                    projectId, e.getMessage(), e);
+            return null;
+        }
+    }
 }

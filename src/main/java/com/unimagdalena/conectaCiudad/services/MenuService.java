@@ -123,22 +123,14 @@ public class MenuService {
         
         return menu;
     }
-    
+
     private List<MenuItemDto> createCommunityLeaderMenu(int startOrder) {
         List<MenuItemDto> menu = new ArrayList<>();
-        
-        List<MenuItemDto> myProjects = List.of(
-            new MenuItemDto("Crear Proyecto", "/lider/projects/create", "PlusCircle", true, 1, List.of()),
-            new MenuItemDto("En Revisión", "/lider/projects/review", "Clock"),
-            new MenuItemDto("Publicados", "/lider/projects/published", "Globe"),
-            new MenuItemDto("Devueltos", "/lider/projects/returned", "RotateCcw"),
-            new MenuItemDto("Todos", "/lider/projects/my-projects", "FolderOpen")
-        );
-        menu.add(new MenuItemDto("Mis Proyectos", "#", "FolderKanban", myProjects));
-        
-        menu.add(new MenuItemDto("Explorar Proyectos", "/lider/projects/explore", "Search"));
+
+        menu.add(new MenuItemDto("Mis Proyectos", "/leader/projects", "FolderKanban"));
+
         menu.add(new MenuItemDto("Resultados", "/lider/results", "BarChart3"));
-        
+
         return menu;
     }
   
@@ -154,7 +146,7 @@ public class MenuService {
 
         List<MenuItemDto> votationsSubmenu = List.of(
                 new MenuItemDto("Mis Votaciones", "citizen/my-votes", "FileCheck"),
-                new MenuItemDto("Resultados", "/citizen/projects/upcoming", "BarChart3")
+                new MenuItemDto("Resultados", "/citizen/projects/results", "BarChart3")
         );
 
         menu.add(new MenuItemDto("Votaciones", "#", "Vote", votationsSubmenu));

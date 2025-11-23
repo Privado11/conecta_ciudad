@@ -1,5 +1,6 @@
 package com.unimagdalena.conectaCiudad.services.voting;
 
+import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
 
@@ -18,4 +19,6 @@ public interface VotingService {
 
 
     List<VotingProjectDto> getClosedVotingProjects(String token);
+
+    List<UserVoteHistoryDto> getUserVotingHistory(String token);
 }
