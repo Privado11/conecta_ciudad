@@ -169,6 +169,7 @@ public class DashboardServiceImpl implements DashboardService {
                             project.getName(), project.getId(), realVotes);
 
                     return new VotingActivityDataDto(
+                            project.getId(),
                             project.getName(),
                             realVotes,
                             project.getVotingEndAt() != null

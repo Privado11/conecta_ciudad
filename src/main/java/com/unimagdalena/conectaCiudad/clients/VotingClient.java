@@ -65,12 +65,6 @@ public class VotingClient {
         return !votes.isEmpty();
     }
 
-    /**
-     * Obtiene el conteo total de votos de un proyecto desde el sistema de votación
-     * @param projectId ID del proyecto
-     * @param token Token de autenticación (opcional pero recomendado)
-     * @return Número total de votos o 0 si hay error
-     */
     public long getProjectVotesCount(Long projectId, String token) {
         try {
             String url = String.format("%s/votaciones/%d/resultados",
@@ -120,6 +114,59 @@ public class VotingClient {
             log.error("Error inesperado al obtener resultados del proyecto {}: {}",
                     projectId, e.getMessage(), e);
             return 0L;
+        }
+    }
+
+    public VotingResultsDto getProjectVotingResults(Long projectId, String token) {
+        try {
+            String url = String.format("%s/votaciones/%d/resultados",
+                    VOTING_BASE_URL, projectId);
+
+            log.debug("Consultando resultados completos de votación para proyecto {}", projectId);
+
+            HttpHeaders headers = new HttpHeaders();
+            if (token != null && !token.isEmpty()) {
+                headers.set("Authorization", "Bearer " + token);
+                log.debug("Token enviado para obtener resultados completos");
+            } else {
+                log.warn("No se envía token para obtener resultados del proyecto {}", projectId);
+            }
+
+            HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<VotingResultsDto> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    entity,
+                    VotingResultsDto.class
+            );
+
+            VotingResultsDto results = response.getBody();
+
+            if (results != null) {
+                log.debug("Proyecto {}: {} votos a favor, {} en contra", 
+                        projectId, results.votesInFavor(), results.votesAgainst());
+                return results;
+            }
+
+            log.warn("Respuesta vacía para resultados del proyecto {}", projectId);
+            return null;
+
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("No se encontraron resultados para proyecto {}", projectId);
+            return null;
+        } catch (HttpClientErrorException e) {
+            log.error("Error HTTP al obtener resultados del proyecto {}: {}",
+                    projectId, e.getMessage());
+            return null;
+        } catch (RestClientException e) {
+            log.error("Error de conexión al obtener resultados del proyecto {}: {}",
+                    projectId, e.getMessage());
+            return null;
+        } catch (Exception e) {
+            log.error("Error inesperado al obtener resultados del proyecto {}: {}",
+                    projectId, e.getMessage(), e);
+            return null;
         }
     }
 }

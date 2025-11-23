@@ -97,7 +97,7 @@ public class MenuService {
         
         menu.add(new MenuItemDto("Proyectos", "/admin/projects", "FolderKanban"));
         
-        menu.add(new MenuItemDto("Votaciones", "/admin/voting/active", "Vote"));
+        menu.add(new MenuItemDto("Votaciones", "/admin/voting", "Vote"));
         
         List<MenuItemDto> comms = List.of(
             new MenuItemDto("Envío Masivo", "/admin/notifications", "Send"),
