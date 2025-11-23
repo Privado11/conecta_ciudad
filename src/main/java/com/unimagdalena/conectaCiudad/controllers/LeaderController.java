@@ -75,8 +75,9 @@ public class LeaderController {
             que tienen votación cerrada (estado VOTING_CLOSED).
             
             **Información incluida:**
-            - Datos básicos del proyecto
-            - Fechas de inicio y fin de votación
+            - Datos completos del proyecto (nombre, descripción, objetivos, beneficiarios, presupuesto)
+            - Fechas del proyecto (inicio y fin)
+            - Fechas de votación (inicio, fin y cierre)
             - Conteo de votos (a favor, en contra, total)
             - Porcentaje de aprobación
             - Resultado final (APPROVED o REJECTED)
