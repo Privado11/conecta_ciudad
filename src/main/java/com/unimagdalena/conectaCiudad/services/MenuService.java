@@ -145,7 +145,7 @@ public class MenuService {
         menu.add(new MenuItemDto("Proyectos", "#", "FolderKanban", projectsSubmenu));
 
         List<MenuItemDto> votationsSubmenu = List.of(
-                new MenuItemDto("Mis Votaciones", "citizen/my-votes", "FileCheck"),
+                new MenuItemDto("Mis Votaciones", "/citizen/my-votes", "FileCheck"),
                 new MenuItemDto("Resultados", "/citizen/projects/results", "BarChart3")
         );
 

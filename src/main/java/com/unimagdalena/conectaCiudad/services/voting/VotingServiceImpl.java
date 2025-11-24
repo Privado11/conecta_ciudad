@@ -6,6 +6,7 @@ import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingResultsDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.UserVotingStatsDto;
 import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Role;
@@ -258,7 +259,7 @@ public class VotingServiceImpl implements VotingService {
     public List<UserVoteHistoryDto> getUserVotingHistory(String token) {
         log.debug("Fetching voting history for authenticated user");
         
-
+        
         List<Project> votingProjects = projectRepository.findByStatusIn(
                 List.of(ProjectStatus.OPEN_FOR_VOTING, ProjectStatus.VOTING_CLOSED),
                 Pageable.unpaged()
@@ -266,63 +267,176 @@ public class VotingServiceImpl implements VotingService {
         
         log.debug("Found {} projects with voting status", votingProjects.size());
         
-  
+        
         List<UserVoteHistoryDto> userVotes = votingProjects.stream()
                 .map(project -> {
                     try {
-                       
+                        
                         VoteDto vote = votingClient.getUserVoteForProject(project.getId(), token);
                         
                         if (vote != null) {
-                          
-                            VotingResultsDto results = getVotingResults(project.getId(), token);
-                            
-                            long votesInFavor = results != null ? results.votesInFavor() : 0L;
-                            long votesAgainst = results != null ? results.votesAgainst() : 0L;
-                            long totalVotes = votesInFavor + votesAgainst;
-                            
-                            double approvalPercentage = totalVotes > 0 ? (votesInFavor * 100.0 / totalVotes) : 0.0;
-                            
                            
-                            String votingStatus = project.getStatus() == ProjectStatus.OPEN_FOR_VOTING ? "OPEN" : "CLOSED";
-                            
-                            
-                            String finalResult = null;
-                            if ("CLOSED".equals(votingStatus)) {
-                                finalResult = approvalPercentage > 50.0 ? "APPROVED" : "REJECTED";
-                            }
-                            
-                            return new UserVoteHistoryDto(
-                                    vote.id(),
-                                    project.getId(),
-                                    project.getName(),
-                                    project.getDescription(),
-                                    project.getVotingStartAt(),
-                                    project.getVotingEndAt(),
-                                    vote.fechaHora(),
-                                    vote.decision(),
-                                    vote.hashVerificacion(),
-                                    project.getStatus(),
-                                    votingStatus,
-                                    finalResult,
-                                    totalVotes,
-                                    votesInFavor,
-                                    votesAgainst,
-                                    approvalPercentage
-                            );
+                            return mapToUserVoteHistoryDto(project, token);
                         }
                         return null;
                     } catch (Exception e) {
-                        log.warn("Error processing vote for project {}: {}", project.getId(), e.getMessage());
+                        log.warn("Error checking vote for project {}: {}", project.getId(), e.getMessage());
                         return null;
                     }
                 })
                 .filter(vote -> vote != null)
-                .sorted((v1, v2) -> v2.voteDate().compareTo(v1.voteDate())) 
+                .sorted((v1, v2) -> v2.createdAt().compareTo(v1.createdAt())) 
                 .collect(Collectors.toList());
         
         log.debug("Found {} votes for user", userVotes.size());
         return userVotes;
+    }
+
+    private UserVoteHistoryDto mapToUserVoteHistoryDto(Project project, String token) {
+     
+        String votingStatus = project.getStatus() == ProjectStatus.OPEN_FOR_VOTING ? "OPEN" : "CLOSED";
+        
+        
+        Long votesInFavor = null;
+        Long votesAgainst = null;
+        Long totalVotes = null;
+        Double participationRate = null;
+        Double approvalPercentage = null;
+        String finalResult = null;
+        OffsetDateTime closedAt = null;
+        
+      
+        Long daysRemaining = null;
+        Long hoursRemaining = null;
+        String urgencyLevel = null;
+        
+        if ("OPEN".equals(votingStatus)) {
+           
+            if (project.getVotingEndAt() != null) {
+                LocalDate now = LocalDate.now();
+                LocalDate endDate = project.getVotingEndAt();
+                
+                long totalDays = Duration.between(now.atStartOfDay(), endDate.atStartOfDay()).toDays();
+                daysRemaining = Math.max(0, totalDays);
+                
+                if (daysRemaining == 0) {
+                    long totalHours = Duration.between(now.atStartOfDay(), endDate.atStartOfDay()).toHours();
+                    hoursRemaining = Math.max(0, totalHours);
+                }
+                
+                if (daysRemaining <= 2) {
+                    urgencyLevel = "CRITICAL";
+                } else if (daysRemaining <= 7) {
+                    urgencyLevel = "HIGH";
+                } else {
+                    urgencyLevel = "NORMAL";
+                }
+            }
+        } else {
+            
+            VotingResultsDto votingResults = getVotingResults(project.getId(), token);
+            
+            long votesFavor = votingResults != null ? votingResults.votesInFavor() : 0L;
+            long votesAgst = votingResults != null ? votingResults.votesAgainst() : 0L;
+            long total = votesFavor + votesAgst;
+            
+            votesInFavor = votesFavor;
+            votesAgainst = votesAgst;
+            totalVotes = total;
+            participationRate = total > 0 ? (total * 100.0 / 5000.0) : 0.0;
+            approvalPercentage = total > 0 ? (votesFavor * 100.0 / total) : 0.0;
+            finalResult = approvalPercentage > 50.0 ? "APPROVED" : "REJECTED";
+            closedAt = project.getUpdatedAt();
+        }
+        
+
+        UserDto creatorDto = new UserDto(
+                project.getCreator().getId(),
+                project.getCreator().getName(),
+                project.getCreator().getNationalId(),
+                project.getCreator().getEmail(),
+                project.getCreator().getPhone(),
+                project.getCreator().getCreatedAt(),
+                project.getCreator().getRoles().stream()
+                        .map(Role::getName)
+                        .collect(Collectors.toList()),
+                project.getCreator().getActive(),
+                null
+        );
+        
+        return new UserVoteHistoryDto(
+                project.getId(),
+                project.getName(),
+                project.getDescription(),
+                project.getObjectives(),
+                project.getBeneficiaryPopulations(),
+                project.getBudget(),
+                project.getStartAt(),
+                project.getEndAt(),
+                project.getVotingStartAt(),
+                project.getVotingEndAt(),
+                project.getCreatedAt(),
+                project.getStatus(),
+                creatorDto,
+                project.getVersion(),
+                votingStatus,
+                votesInFavor,
+                votesAgainst,
+                totalVotes,
+                participationRate,
+                daysRemaining,
+                hoursRemaining,
+                urgencyLevel,
+                finalResult,
+                closedAt,
+                approvalPercentage
+        );
+    }
+
+    @Override
+    public UserVotingStatsDto getUserVotingStats(String token) {
+        log.debug("Calculating voting statistics for authenticated user");
+        
+        
+        List<Project> closedProjects = projectRepository.findByStatus(ProjectStatus.VOTING_CLOSED, 
+                Pageable.unpaged()).getContent();
+        
+        log.debug("Found {} closed voting projects", closedProjects.size());
+        
+       
+        long totalVotes = 0;
+        long votesInFavor = 0;
+        long votesAgainst = 0;
+        
+        for (Project project : closedProjects) {
+            try {
+                VoteDto vote = votingClient.getUserVoteForProject(project.getId(), token);
+                if (vote != null) {
+                    totalVotes++;
+                    if (vote.decision()) {
+                        votesInFavor++;
+                    } else {
+                        votesAgainst++;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error checking vote for project {}: {}", project.getId(), e.getMessage());
+            }
+        }
+        
+        double participationRate = closedProjects.size() > 0 
+                ? (totalVotes * 1.0 / closedProjects.size()) 
+                : 0.0;
+        
+        log.debug("User stats - Total: {}, In Favor: {}, Against: {}, Participation: {}", 
+                totalVotes, votesInFavor, votesAgainst, participationRate);
+        
+        return new UserVotingStatsDto(
+                totalVotes,
+                votesInFavor,
+                votesAgainst,
+                participationRate
+        );
     }
 }
 
