@@ -47,7 +47,7 @@ public class LeaderServiceImpl implements LeaderService{
 
             validateStartDate(
                     projectSaveDto.startAt(),
-                    "La fecha de inicio debe ser al menos 7 días después de la fecha de creación"
+                    "La fecha de inicio debe ser al menos 20 días después de la fecha de creación", 20
             );
 
 
@@ -163,7 +163,7 @@ public class LeaderServiceImpl implements LeaderService{
             validateProjectOwnership(project, creatorId);
             validateStartDate(
                     project.getStartAt(),
-                    "La fecha de inicio debe ser al menos 7 días después de hoy para poder enviar el proyecto a revisión"
+                    "La fecha de inicio debe ser al menos 10 días después de hoy para poder enviar el proyecto a revisión", 10
             );
 
 
@@ -373,12 +373,12 @@ public class LeaderServiceImpl implements LeaderService{
         return value != null ? value : "sin valor";
     }
 
-    private void validateStartDate(LocalDate startAt, String errorMessage) {
+    private void validateStartDate(LocalDate startAt, String errorMessage, Integer time) {
         LocalDate today = LocalDate.now();
 
         long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(today, startAt);
 
-        if (daysBetween < 7) {
+        if (daysBetween < time) {
             throw new BadRequestException(errorMessage);
         }
     }
