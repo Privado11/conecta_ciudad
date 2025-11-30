@@ -1,12 +1,12 @@
 services:
   db:
-    container_name: conecta_ciudad_db
+    container_name: conecta_ciudad_db_dev
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: conecta_ciudad_dev
     ports:
       - "5432:5432"
     volumes:

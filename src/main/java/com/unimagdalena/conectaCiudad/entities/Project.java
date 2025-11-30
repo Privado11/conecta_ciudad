@@ -73,6 +73,14 @@ public class Project {
     @Builder.Default
     private List<Review> reviews = new ArrayList<>();
 
+    @OneToMany(mappedBy = "project", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<ProjectStatusHistory> statusHistory = new ArrayList<>();
+
+    @OneToMany(mappedBy = "project", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Vote> votes = new ArrayList<>();
+
     @Version
     private Long version;
 

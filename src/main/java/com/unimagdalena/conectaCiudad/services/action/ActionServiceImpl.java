@@ -9,6 +9,8 @@ import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
+import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
@@ -19,7 +21,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AllArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,7 +33,6 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@Slf4j
 @Service
 @AllArgsConstructor
 public class ActionServiceImpl implements ActionService {
@@ -61,25 +61,19 @@ public class ActionServiceImpl implements ActionService {
     @Override
     @Transactional
     public void logAction(String actionType, String description, User user, Access access) {
-        if (user == null) {
-            log.warn("Intento de log con usuario null para acción: {}", actionType);
-            return;
-        }
-        
-        try {
-            ActionSaveDto dto = new ActionSaveDto(actionType, description, user, access);
-            save(dto);
-        } catch (Exception e) {
-            log.error("Error al registrar acción {}: {}", actionType, e.getMessage(), e);
-        }
+       
+        ActionSaveDto dto = new ActionSaveDto(actionType, description, user, access);
+        save(dto);
     }
 
     @Override
     @Transactional
     public ActionDto logActionWithDetails(ActionLogRequest request) {
         if (request.userId() == null) {
-            log.error("No se puede registrar acción sin userId");
-            throw new IllegalArgumentException("userId es requerido");
+            throw new BadRequestException(
+                    ErrorCode.REQUIRED_FIELD,
+                    Map.of("field", "userId")
+            );
         }
 
         try {
@@ -109,8 +103,7 @@ public class ActionServiceImpl implements ActionService {
             return actionMapper.toDto(savedAction);
             
         } catch (Exception e) {
-            log.error("Error al registrar acción detallada: {}", e.getMessage(), e);
-            throw new RuntimeException("Error al registrar acción", e);
+            throw new BadRequestException(ErrorCode.OPERATION_FAILED);
         }
     }
 
@@ -212,7 +205,6 @@ public class ActionServiceImpl implements ActionService {
         }
     
         if (action.getEntityId() == null) {
-            log.warn("La acción {} (ID={}) no tiene entidad asociada.", action.getActionType(), action.getId());
             details.put("entityData", Map.of("info", "Esta acción no tiene entidad asociada"));
         } else {
             switch (action.getEntityType()) {
@@ -263,7 +255,7 @@ public class ActionServiceImpl implements ActionService {
     
 
     private void enrichActionWithRequestData(Action action) {
-        try {
+        
             String ipAddress = extractIpAddress();
             String userAgent = request.getHeader("User-Agent");
 
@@ -271,9 +263,7 @@ public class ActionServiceImpl implements ActionService {
             action.setUserAgent(userAgent != null
                     ? userAgent.substring(0, Math.min(userAgent.length(), 500))
                     : null);
-        } catch (Exception e) {
-            log.warn("No se pudo extraer información del request: {}", e.getMessage());
-        }
+        
     }
 
     private String extractIpAddress() {
@@ -318,7 +308,7 @@ public class ActionServiceImpl implements ActionService {
         try {
             return objectMapper.writeValueAsString(metadata);
         } catch (JsonProcessingException e) {
-            log.error("Error al serializar metadata: {}", e.getMessage());
+          
             return null;
         }
     }

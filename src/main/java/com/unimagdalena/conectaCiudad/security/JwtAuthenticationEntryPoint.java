@@ -28,9 +28,12 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
             return;
         }
         
-        Map<String, String> json = new HashMap<>();
-        json.put("message", "You do not have permission to perform this action11.");
-        json.put("error", authException.getMessage());
+        Map<String, Object> json = new HashMap<>();
+        json.put("timestamp", java.time.LocalDateTime.now().toString());
+        json.put("status", HttpServletResponse.SC_UNAUTHORIZED);
+        json.put("error", "UNAUTHORIZED");
+        json.put("errorCode", "ACCESS_DENIED"); 
+        json.put("path", requestUri);
 
         response.setContentType("application/json");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

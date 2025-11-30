@@ -1,11 +1,22 @@
 package com.unimagdalena.conectaCiudad.exceptions;
 
 public class ResourceNotFoundException extends RuntimeException {
-    public ResourceNotFoundException(String message) {
-        super(message);
+    
+    private final String errorCode = "RESOURCE_NOT_FOUND";
+    private final String resource;
+    private final String field;
+    private final Object value;
+
+    public ResourceNotFoundException(String resource, String field, Object value) {
+        super(String.format("%s not found with %s: '%s'", resource, field, value));
+        this.resource = resource;
+        this.field = field;
+        this.value = value;
     }
 
-    public ResourceNotFoundException(String resourceName, String fieldName, Object fieldValue) {
-        super(String.format("%s not found with %s: '%s'", resourceName, fieldName, fieldValue));
-    }
+    public String getErrorCode() { return errorCode; }
+    public String getResource() { return resource; }
+    public String getField() { return field; }
+    public Object getValue() { return value; }
 }
+

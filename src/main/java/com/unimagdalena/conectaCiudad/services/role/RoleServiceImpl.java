@@ -7,6 +7,7 @@ import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.entities.Permission;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
 import com.unimagdalena.conectaCiudad.enums.RoleActionType;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
@@ -79,7 +80,7 @@ public class RoleServiceImpl implements RoleService {
                     .toList();
 
             if (newPermissions.isEmpty()) {
-                throw new BadRequestException("No se encontraron permisos válidos para los códigos proporcionados");
+                throw new BadRequestException(ErrorCode.NO_VALID_PERMISSIONS);
             }
 
             Set<Permission> oldPermissions = new HashSet<>(role.getPermissions());
@@ -94,7 +95,7 @@ public class RoleServiceImpl implements RoleService {
 
                 auditHelper.logComplete(
                         RoleActionType.ROLE_PERMISSIONS_UPDATED.name(),
-                        "Permisos del rol '" + role.getName() + "' actualizados",
+                        "Role permissions for '" + role.getName() + "' updated",
                         EntityType.ROLE,
                         roleId,
                         ActionResult.SUCCESS,
@@ -107,7 +108,7 @@ public class RoleServiceImpl implements RoleService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     RoleActionType.ROLE_PERMISSIONS_UPDATED.name(),
-                    "Error al actualizar permisos del rol " + roleId,
+                    "Error updating permissions for role " + roleId,
                     e.getMessage()
             );
             throw e;
@@ -126,14 +127,17 @@ public class RoleServiceImpl implements RoleService {
 
             boolean added = role.getPermissions().add(permission);
             if (!added) {
-                throw new BadRequestException("El rol ya tiene asignado el permiso '" + permissionCode + "'");
+                throw new BadRequestException(
+                        ErrorCode.PERMISSION_ALREADY_ASSIGNED,
+                        Map.of("permissionCode", permissionCode)
+                );
             }
 
             Role savedRole = roleRepository.save(role);
 
             auditHelper.logComplete(
                     RoleActionType.ROLE_PERMISSION_ADDED.name(),
-                    "Permiso '" + permissionCode + "' agregado al rol '" + role.getName() + "'",
+                    "Permission '" + permissionCode + "' added to role '" + role.getName() + "'",
                     EntityType.ROLE,
                     roleId,
                     ActionResult.SUCCESS,
@@ -148,7 +152,7 @@ public class RoleServiceImpl implements RoleService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     RoleActionType.ROLE_PERMISSION_ADDED.name(),
-                    "Error al agregar permiso al rol " + roleId,
+                    "Error adding permission to role " + roleId,
                     e.getMessage()
             );
             throw e;
@@ -167,14 +171,17 @@ public class RoleServiceImpl implements RoleService {
 
             boolean removed = role.getPermissions().remove(permission);
             if (!removed) {
-                throw new BadRequestException("El rol no tiene el permiso '" + permissionCode + "'");
+                throw new BadRequestException(
+                        ErrorCode.PERMISSION_NOT_ASSIGNED,
+                        Map.of("permissionCode", permissionCode)
+                );
             }
 
             Role savedRole = roleRepository.save(role);
 
             auditHelper.logComplete(
                     RoleActionType.ROLE_PERMISSION_REMOVED.name(),
-                    "Permiso '" + permissionCode + "' removido del rol '" + role.getName() + "'",
+                    "Permission '" + permissionCode + "' removed from role '" + role.getName() + "'",
                     EntityType.ROLE,
                     roleId,
                     ActionResult.SUCCESS,
@@ -189,7 +196,7 @@ public class RoleServiceImpl implements RoleService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     RoleActionType.ROLE_PERMISSION_REMOVED.name(),
-                    "Error al remover permiso del rol " + roleId,
+                    "Error removing permission from role " + roleId,
                     e.getMessage()
             );
             throw e;

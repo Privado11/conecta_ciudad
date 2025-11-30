@@ -7,6 +7,7 @@ import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
@@ -74,24 +75,23 @@ public class CitizenActionServiceImpl implements CitizenActionService {
     private void validateRequest(CitizenActionRequest request) {
 
         if (request.getActionType() == null) {
-            throw new BadRequestException("El tipo de acción es requerido");
+            throw new BadRequestException(ErrorCode.ACTION_TYPE_REQUIRED);
         }
 
         if (request.getProjectId() == null) {
-            throw new BadRequestException("El ID del proyecto es requerido");
+            throw new BadRequestException(ErrorCode.PROJECT_ID_REQUIRED);
         }
 
         if (request.getDescription() == null || request.getDescription().trim().isEmpty()) {
-            throw new BadRequestException("La descripción es requerida");
+            throw new BadRequestException(ErrorCode.DESCRIPTION_REQUIRED);
         }
     }
 
 
     private User findUserByEmail(String email) {
         User user = userRepository.findByEmail(email);
-
         if (user == null) {
-            throw new ResourceNotFoundException("Usuario no encontrado con email: " + email);
+            throw new ResourceNotFoundException("User", "email", email);
         }
 
         return user;

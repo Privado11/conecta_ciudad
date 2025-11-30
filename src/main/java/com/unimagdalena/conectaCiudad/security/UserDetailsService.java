@@ -26,7 +26,7 @@ public class UserDetailsService implements org.springframework.security.core.use
         User user = userRepository.findByEmail(username);
         
         if (user == null) {
-            throw new UsernameNotFoundException("User not found with email: " + username);
+            throw new UsernameNotFoundException("USER_NOT_FOUND");
         }
 
         List<GrantedAuthority> authorities = user.getRoles().stream()

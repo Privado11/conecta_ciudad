@@ -74,4 +74,7 @@ public class User {
 
     @OneToMany(mappedBy = "creator")
     private List<Project> projects;
+
+    @OneToMany(mappedBy = "voter", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Vote> votes;
 }

@@ -37,7 +37,6 @@ import java.util.Map;
 public class SecurityConfig {
 
     private final AuthenticationConfiguration authenticationConfiguration;
-    private final JwtAuthenticationEntryPoint authenticationEntryPoint;
     private final UserRepository userRepository;
     private final AccessService accessService;
     private final AccessMapper accessMapper;
@@ -64,9 +63,12 @@ SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     jwtAuthFilter.setAuthenticationFailureHandler((request, response, exception) -> {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType("application/json");
-        Map<String, String> error = new HashMap<>();
-        error.put("message", "Correo o contraseña incorrectos");
-        error.put("error", exception.getMessage());
+        Map<String, Object> error = new HashMap<>();
+        error.put("timestamp", java.time.LocalDateTime.now().toString());
+        error.put("status", HttpServletResponse.SC_UNAUTHORIZED);
+        error.put("error", "INVALID_CREDENTIALS");
+        error.put("errorCode", "INVALID_CREDENTIALS");
+        error.put("path", "/auth/login");
         response.getWriter().write(new ObjectMapper().writeValueAsString(error));
     });
 

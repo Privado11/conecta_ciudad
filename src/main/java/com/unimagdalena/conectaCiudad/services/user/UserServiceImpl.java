@@ -7,6 +7,7 @@ import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
 import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
@@ -27,10 +28,7 @@ import java.util.*;
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
 
-    private static final String DEFAULT_ROLE = "CIUDADANO";
-    private static final Set<String> ALLOWED_ROLE_NAMES = Set.of(
-            "ADMIN", "CIUDADANO", "CURATOR", "LIDER_COMUNITARIO"
-    );
+    private static final String DEFAULT_ROLE = "CITIZEN";
     private static final int MIN_PASSWORD_LENGTH = 6;
 
     private final UserRepository userRepository;
@@ -114,7 +112,7 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_CREATED.name(),
-                    "Error al registrar usuario: " + userDto.email(),
+                    "Error registering user: " + userDto.email(),
                     e.getMessage()
             );
             throw e;
@@ -143,8 +141,8 @@ public class UserServiceImpl implements UserService {
 
         } catch (Exception e) {
             auditHelper.logFailure(
-                    UserActionType.USER_PROFILE_UPDATED.name(),
-                    "Error al actualizar perfil del usuario " + userId,
+                    UserActionType.USER_UPDATED.name(),
+                    "Error updating user profile " + userId,
                     e.getMessage()
             );
             throw e;
@@ -168,7 +166,7 @@ public class UserServiceImpl implements UserService {
 
             auditHelper.logComplete(
                     UserActionType.USER_PASSWORD_CHANGED.name(),
-                    "Usuario cambió su propia contraseña",
+                    "User changed their own password",
                     EntityType.USER,
                     userId,
                     ActionResult.SUCCESS,
@@ -182,7 +180,7 @@ public class UserServiceImpl implements UserService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_PASSWORD_CHANGED.name(),
-                    "Error al cambiar contraseña del usuario " + userId,
+                    "Error changing password for user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -238,10 +236,7 @@ public class UserServiceImpl implements UserService {
                 .anyMatch(role -> !DEFAULT_ROLE.equalsIgnoreCase(role));
 
         if (hasNonCitizen) {
-            throw new BadRequestException(
-                    "Solo se permite el rol 'CIUDADANO' en el registro público. " +
-                            "Para asignar otros roles, contacte a un administrador."
-            );
+            throw new BadRequestException(ErrorCode.ROLE_CITIZEN_ONLY);
         }
     }
 
@@ -255,8 +250,11 @@ public class UserServiceImpl implements UserService {
 
         if (emailExists && nationalIdExists) {
             throw new BadRequestException(
-                    String.format("El email '%s' y la cédula '%s' ya están registrados",
-                            email, nationalId)
+                    ErrorCode.EMAIL_AND_NATIONAL_ID_EXIST,
+                    Map.of(
+                            "email", email,
+                            "nationalId", nationalId
+                    )
             );
         }
 
@@ -272,24 +270,24 @@ public class UserServiceImpl implements UserService {
 
     private void validateCurrentPassword(User user, String oldPassword) {
         if (oldPassword == null || oldPassword.isBlank()) {
-            throw new BadRequestException("Debe proporcionar la contraseña actual");
+            throw new BadRequestException(ErrorCode.PASSWORD_REQUIRED);
         }
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-            throw new BadRequestException("La contraseña actual es incorrecta");
+            throw new BadRequestException(ErrorCode.PASSWORD_INCORRECT);
         }
     }
 
 
     private void validateNewPassword(String newPassword) {
         if (newPassword == null || newPassword.isBlank()) {
-            throw new BadRequestException("La nueva contraseña no puede estar vacía");
+            throw new BadRequestException(ErrorCode.PASSWORD_EMPTY);
         }
 
         if (newPassword.length() < MIN_PASSWORD_LENGTH) {
             throw new BadRequestException(
-                    String.format("La nueva contraseña debe tener al menos %d caracteres",
-                            MIN_PASSWORD_LENGTH)
+                    ErrorCode.PASSWORD_TOO_SHORT,
+                    Map.of("minLength", MIN_PASSWORD_LENGTH)
             );
         }
 
@@ -333,7 +331,7 @@ public class UserServiceImpl implements UserService {
 
         auditHelper.logComplete(
                 UserActionType.USER_CREATED.name(),
-                String.format("Usuario '%s' creado con rol: %s", user.getName(), roleName),
+                "User '" + user.getName() + "' registered with role: " + roleName,
                 EntityType.USER,
                 user.getId(),
                 ActionResult.SUCCESS,
@@ -352,14 +350,14 @@ public class UserServiceImpl implements UserService {
         String oldPhone = oldValues.get("phone");
         String newPhone = updatedUser.getPhone() != null ? updatedUser.getPhone() : "";
         if (!oldPhone.equals(newPhone)) {
-            metadata.put("oldPhone", oldPhone.isEmpty() ? "sin valor" : oldPhone);
-            metadata.put("newPhone", newPhone.isEmpty() ? "sin valor" : newPhone);
+            metadata.put("oldPhone", oldPhone.isEmpty() ? null : oldPhone);
+            metadata.put("newPhone", newPhone.isEmpty() ? null : newPhone);
         }
 
         if (!metadata.isEmpty()) {
             auditHelper.logComplete(
-                    UserActionType.USER_PROFILE_UPDATED.name(),
-                    "Usuario actualizó su propio perfil",
+                    UserActionType.USER_PASSWORD_CHANGED.name(),
+                    "Password changed successfully",
                     EntityType.USER,
                     userId,
                     ActionResult.SUCCESS,

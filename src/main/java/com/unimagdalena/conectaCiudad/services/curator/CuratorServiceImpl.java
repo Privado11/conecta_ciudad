@@ -13,9 +13,11 @@ import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
 import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
+import com.unimagdalena.conectaCiudad.exceptions.ForbiddenException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
@@ -27,7 +29,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -53,7 +54,10 @@ public class CuratorServiceImpl implements CuratorService {
         try {
 
             if(notes.length() < 10){
-                throw new BadRequestException("Las observaciones deben tener al menos 10 caracteres");
+                throw new BadRequestException(
+                        ErrorCode.REVIEW_OBSERVATIONS_TOO_SHORT,
+                        Map.of("minLength", 10)
+                );
             }
 
             Project project = findProjectById(projectId);
@@ -62,8 +66,8 @@ public class CuratorServiceImpl implements CuratorService {
 
             if (!project.getStatus().canBeReviewed()) {
                 throw new BadRequestException(
-                        "No se pueden agregar observaciones. El proyecto debe estar en revisión. Estado actual: " +
-                                project.getStatus().getDisplayName()
+                        ErrorCode.REVIEW_NOT_REVIEWABLE,
+                        Map.of("currentStatus", project.getStatus().name())
                 );
             }
 
@@ -83,7 +87,7 @@ public class CuratorServiceImpl implements CuratorService {
 
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
-                    "Observaciones agregadas al proyecto '" + project.getName() + "'",
+                    "Observations added to project '" + project.getName() + "'",
                     EntityType.REVIEW,
                     review.getId(),
                     ActionResult.SUCCESS,
@@ -95,7 +99,7 @@ public class CuratorServiceImpl implements CuratorService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
-                    "Error al agregar observaciones al proyecto " + projectId,
+                    "Error adding observations to project " + projectId,
                     e.getMessage()
             );
             throw e;
@@ -119,8 +123,8 @@ public class CuratorServiceImpl implements CuratorService {
 
             if (!project.getStatus().canBeReviewed()) {
                 throw new BadRequestException(
-                        "No se pueden aprobar el proyecto. El proyecto debe estar en revisión. Estado actual: " +
-                                project.getStatus().getDisplayName()
+                        ErrorCode.REVIEW_NOT_APPROVABLE,
+                        Map.of("currentStatus", project.getStatus().name())
                 );
             }
 
@@ -154,7 +158,7 @@ public class CuratorServiceImpl implements CuratorService {
 
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_APPROVED.name(),
-                    String.format("Proyecto '%s' aprobado y listo para publicar. Votación: %s - %s",
+                    String.format("Project '%s' approved and ready to publish. Voting: %s - %s",
                             project.getName(),
                             votingStartAt,
                             votingEndAt),
@@ -169,7 +173,7 @@ public class CuratorServiceImpl implements CuratorService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_APPROVED.name(),
-                    "Error al aprobar proyecto " + projectId,
+                    "Error approving project " + projectId,
                     e.getMessage()
             );
             throw e;
@@ -212,7 +216,7 @@ public class CuratorServiceImpl implements CuratorService {
         validateCuratorAccess(review, curatorId);
         
         if (review.getReviewedAt() != null) {
-            throw new BadRequestException("Esta revisión ya fue completada");
+            throw new BadRequestException(ErrorCode.REVIEW_ALREADY_COMPLETED);
         }
         
         return buildPendingReviewDto(review, OffsetDateTime.now());
@@ -283,7 +287,7 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
             project.getStatus(),
             
             creator != null ? creator.getId() : null,
-            creator != null ? creator.getName() : "Sin asignar",
+            creator != null ? creator.getName() : null,
             creator != null ? creator.getEmail() : null,
             
             review.getId(),
@@ -326,7 +330,7 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
                 project.getStatus(),
                 
                 creator != null ? creator.getId() : null,
-                creator != null ? creator.getName() : "Sin asignar",
+                creator != null ? creator.getName() : null,
                 creator != null ? creator.getEmail() : null,
                 
                 review.getId(),
@@ -348,7 +352,7 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
 
     private void validateCuratorAccess(Review review, Long curatorId) {
         if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
-            throw new AccessDeniedException("Solo el curador asignado puede realizar esta acción");
+            throw new ForbiddenException(ErrorCode.ACCESS_DENIED_NOT_ASSIGNED_CURATOR);
         }
     }
 
@@ -368,29 +372,26 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
     private void validateVotingDates(LocalDate votingStart, LocalDate votingEnd, Project project) {
 
         if (votingStart == null || votingEnd == null) {
-            throw new BadRequestException("Las fechas de votación son obligatorias");
+            throw new BadRequestException(ErrorCode.VOTING_DATES_REQUIRED);
         }
     
         LocalDate today = LocalDate.now();
     
         if (!votingStart.isAfter(today)) {
-            throw new BadRequestException("La fecha de inicio de votación debe ser posterior a hoy");
+            throw new BadRequestException(ErrorCode.VOTING_START_NOT_FUTURE);
         }
     
         if (!votingEnd.isAfter(votingStart)) {
-            throw new BadRequestException(
-                    "La fecha de fin de votación debe ser posterior a la fecha de inicio"
-            );
+            throw new BadRequestException(ErrorCode.VOTING_END_BEFORE_START);
         }
     
 
         if (!votingEnd.isBefore(project.getStartAt())) {
             throw new BadRequestException(
-                    String.format(
-                            "La votación debe finalizar antes del inicio del proyecto. " +
-                                    "Votación termina: %s, Proyecto inicia: %s",
-                            votingEnd,
-                            project.getStartAt()
+                    ErrorCode.VOTING_END_AFTER_PROJECT_START,
+                    Map.of(
+                            "votingEnd", votingEnd.toString(),
+                            "projectStart", project.getStartAt().toString()
                     )
             );
         }
@@ -398,10 +399,10 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
         long bufferDays = ChronoUnit.DAYS.between(votingEnd, project.getStartAt());
         if (bufferDays < 3) {
             throw new BadRequestException(
-                    String.format(
-                            "Debe haber al menos 3 días entre el fin de la votación y el inicio del proyecto. " +
-                                    "Días actuales: %d",
-                            bufferDays
+                    ErrorCode.VOTING_BUFFER_TOO_SHORT,
+                    Map.of(
+                            "currentDays", bufferDays,
+                            "requiredDays", 3
                     )
             );
         }
@@ -409,9 +410,10 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
         long votingDurationDays = ChronoUnit.DAYS.between(votingStart, votingEnd);
         if (votingDurationDays < 3) {
             throw new BadRequestException(
-                    String.format(
-                            "La votación debe durar al menos 3 días. Actualmente dura %d días.",
-                            votingDurationDays
+                    ErrorCode.VOTING_DURATION_TOO_SHORT,
+                    Map.of(
+                            "currentDays", votingDurationDays,
+                            "requiredDays", 3
                     )
             );
         }

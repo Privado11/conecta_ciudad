@@ -11,16 +11,17 @@ import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
 import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
+import com.unimagdalena.conectaCiudad.exceptions.ForbiddenException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -45,10 +46,7 @@ public class LeaderServiceImpl implements LeaderService{
         try {
             validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
 
-            validateStartDate(
-                    projectSaveDto.startAt(),
-                    "La fecha de inicio debe ser al menos 20 días después de la fecha de creación", 20
-            );
+            validateStartDate(projectSaveDto.startAt(), 20);
 
 
             User creator = findUserById(creatorId);
@@ -64,7 +62,7 @@ public class LeaderServiceImpl implements LeaderService{
 
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_CREATED.name(),
-                    "Proyecto '" + savedProject.getName() + "' creado con ID " + savedProject.getId(),
+                    "Project '" + savedProject.getName() + "' created with ID " + savedProject.getId(),
                     EntityType.PROJECT,
                     savedProject.getId(),
                     ActionResult.SUCCESS,
@@ -76,7 +74,7 @@ public class LeaderServiceImpl implements LeaderService{
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_CREATED.name(),
-                    "Intento fallido de crear proyecto",
+                    "Failed attempt to create project",
                     e.getMessage()
             );
             throw e;
@@ -91,8 +89,8 @@ public class LeaderServiceImpl implements LeaderService{
 
             if (!existingProject.getStatus().isEditable()) {
                 throw new BadRequestException(
-                        "El proyecto no puede ser editado en el estado: " +
-                                existingProject.getStatus().getDisplayName()
+                        ErrorCode.PROJECT_NOT_EDITABLE,
+                        Map.of("currentStatus", existingProject.getStatus().name())
                 );
             }
 
@@ -106,8 +104,8 @@ public class LeaderServiceImpl implements LeaderService{
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_UPDATED.name(),
                     changes.isEmpty()
-                            ? "Proyecto '" + updatedProject.getName() + "' actualizado sin cambios efectivos"
-                            : "Proyecto '" + updatedProject.getName() + "' actualizado",
+                            ? "Project '" + updatedProject.getName() + "' updated with no effective changes"
+                            : "Project '" + updatedProject.getName() + "' updated",
                     EntityType.PROJECT,
                     id,
                     ActionResult.SUCCESS,
@@ -119,7 +117,7 @@ public class LeaderServiceImpl implements LeaderService{
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_UPDATED.name(),
-                    "Error al actualizar proyecto " + id,
+                    "Error updating project " + id,
                     e.getMessage()
             );
             throw e;
@@ -139,7 +137,7 @@ public class LeaderServiceImpl implements LeaderService{
 
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_DELETED.name(),
-                    "Proyecto '" + project.getName() + "' eliminado correctamente",
+                    "Project '" + project.getName() + "' deleted successfully",
                     EntityType.PROJECT,
                     project.getId(),
                     ActionResult.SUCCESS,
@@ -149,7 +147,7 @@ public class LeaderServiceImpl implements LeaderService{
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_DELETED.name(),
-                    "Error al eliminar proyecto con ID " + id,
+                    "Error deleting project with ID " + id,
                     e.getMessage()
             );
             throw e;
@@ -161,16 +159,13 @@ public class LeaderServiceImpl implements LeaderService{
         try {
             Project project = findProjectById(projectId);
             validateProjectOwnership(project, creatorId);
-            validateStartDate(
-                    project.getStartAt(),
-                    "La fecha de inicio debe ser al menos 10 días después de hoy para poder enviar el proyecto a revisión", 10
-            );
+            validateStartDate(project.getStartAt(), 10);
 
 
             if (!project.getStatus().canBeSubmitted()) {
                 throw new BadRequestException(
-                        "El proyecto no puede ser enviado a revisión desde el estado: " +
-                                project.getStatus().getDisplayName()
+                        ErrorCode.PROJECT_NOT_SUBMITTABLE,
+                        Map.of("currentStatus", project.getStatus().name())
                 );
             }
 
@@ -226,7 +221,7 @@ public class LeaderServiceImpl implements LeaderService{
 
             auditHelper.logComplete(
                     ProjectActionType.PROJECT_SUBMITTED_FOR_REVIEW.name(),
-                    String.format("Proyecto '%s' enviado a revisión - Curador: %s",
+                    String.format("Project '%s' submitted for review - Curator: %s",
                             project.getName(),
                             review.getCurator().getName()),
                     EntityType.PROJECT,
@@ -240,7 +235,7 @@ public class LeaderServiceImpl implements LeaderService{
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.PROJECT_SUBMITTED_FOR_REVIEW.name(),
-                    "Error al enviar proyecto " + projectId + " a revisión",
+                    "Error submitting project " + projectId + " for review",
                     e.getMessage()
             );
             throw e;
@@ -300,10 +295,10 @@ public class LeaderServiceImpl implements LeaderService{
 
     private void validateProjectDates(LocalDate startAt, LocalDate endAt) {
         if (startAt == null || endAt == null) {
-            throw new BadRequestException("Las fechas de inicio y fin son obligatorias");
+            throw new BadRequestException(ErrorCode.PROJECT_DATES_REQUIRED);
         }
         if (endAt.isBefore(startAt)) {
-            throw new BadRequestException("La fecha de fin debe ser posterior a la de inicio");
+            throw new BadRequestException(ErrorCode.PROJECT_END_BEFORE_START);
         }
     }
 
@@ -353,39 +348,45 @@ public class LeaderServiceImpl implements LeaderService{
         }
 
         if (!Objects.equals(existing.getStartAt(), dto.startAt())) {
-            changes.put("oldStartAt", existing.getStartAt() != null ? existing.getStartAt().toString() : "sin valor");
-            changes.put("newStartAt", dto.startAt() != null ? dto.startAt().toString() : "sin valor");
+            changes.put("oldStartAt", existing.getStartAt() != null ? existing.getStartAt().toString() : null);
+            changes.put("newStartAt", dto.startAt() != null ? dto.startAt().toString() : null);
         }
 
         if (!Objects.equals(existing.getEndAt(), dto.endAt())) {
-            changes.put("oldEndAt", existing.getEndAt() != null ? existing.getEndAt().toString() : "sin valor");
-            changes.put("newEndAt", dto.endAt() != null ? dto.endAt().toString() : "sin valor");
+            changes.put("oldEndAt", existing.getEndAt() != null ? existing.getEndAt().toString() : null);
+            changes.put("newEndAt", dto.endAt() != null ? dto.endAt().toString() : null);
         }
 
         return changes;
     }
 
     private String valueOrDefault(String value) {
-        return value != null ? value : "sin valor";
+        return value != null ? value : null;
     }
 
     private Object valueOrDefault(BigDecimal value) {
-        return value != null ? value : "sin valor";
+        return value != null ? value : null;
     }
 
-    private void validateStartDate(LocalDate startAt, String errorMessage, Integer time) {
+    private void validateStartDate(LocalDate startAt, Integer requiredDays) {
         LocalDate today = LocalDate.now();
 
         long daysBetween = java.time.temporal.ChronoUnit.DAYS.between(today, startAt);
 
-        if (daysBetween < time) {
-            throw new BadRequestException(errorMessage);
+        if (daysBetween < requiredDays) {
+            throw new BadRequestException(
+                    ErrorCode.PROJECT_START_DATE_TOO_SOON,
+                    Map.of(
+                            "requiredDays", requiredDays,
+                            "actualDays", daysBetween
+                    )
+            );
         }
     }
 
     private void validateProjectOwnership(Project project, Long userId) {
         if (!Objects.equals(project.getCreator().getId(), userId)) {
-            throw new AccessDeniedException("Solo el creador del proyecto puede editarlo");
+            throw new ForbiddenException(ErrorCode.ACCESS_DENIED_NOT_PROJECT_OWNER);
         }
     }
 
@@ -415,7 +416,7 @@ public class LeaderServiceImpl implements LeaderService{
 
                 auditHelper.logEntity(
                         ProjectActionType.CURATOR_ASSIGNED.name(),
-                        "Curador " + chosenCurator.getName() + " asignado automáticamente al proyecto " + project.getName(),
+                        "Curator " + chosenCurator.getName() + " automatically assigned to project " + project.getName(),
                         EntityType.PROJECT,
                         project.getId()
                 );

@@ -47,6 +47,6 @@ public record ReviewHistoryDto(
     }
     
     public String getStatusDisplayName() {
-        return projectStatus.getDisplayName();
+        return projectStatus.name();
     }
 }

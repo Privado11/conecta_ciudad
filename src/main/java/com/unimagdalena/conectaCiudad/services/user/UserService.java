@@ -1,9 +1,6 @@
 package com.unimagdalena.conectaCiudad.services.user;
 
-import java.util.List;
-
 import com.unimagdalena.conectaCiudad.Dto.user.*;
-
 
 public interface UserService {
     UserDto findByEmail(String email);

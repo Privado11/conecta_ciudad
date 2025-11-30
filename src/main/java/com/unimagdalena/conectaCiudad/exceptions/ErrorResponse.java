@@ -2,6 +2,7 @@ package com.unimagdalena.conectaCiudad.exceptions;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
@@ -19,7 +20,8 @@ public class ErrorResponse {
     private LocalDateTime timestamp;
     private int status;
     private String error;
-    private String message;
+    private String errorCode;
+    private Map<String, Object> parameters;
     private String path;
     private List<ValidationError> validationErrors;
 
@@ -29,6 +31,9 @@ public class ErrorResponse {
     @AllArgsConstructor
     public static class ValidationError {
         private String field;
-        private String message;
+        private String errorCode;
+        private Map<String, Object> parameters;
     }
 }
+
+

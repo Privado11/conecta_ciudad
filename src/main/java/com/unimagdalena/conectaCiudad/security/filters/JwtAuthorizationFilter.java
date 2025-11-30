@@ -22,6 +22,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
+import java.util.HashMap;
+import java.util.Map;
 import static com.unimagdalena.conectaCiudad.security.TokenJwtConfig.*;
 
 
@@ -33,6 +37,8 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
     public JwtAuthorizationFilter(UserRepository userRepository) {
         this.userRepository = userRepository;
     }
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
@@ -65,17 +71,16 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
             User user = userRepository.findByEmail(username);
             
             if (user == null) {
-                log.warn("Usuario no encontrado en BD: {}", username);
+                log.warn("User not found in DB: {}", username);
                 SecurityContextHolder.clearContext();
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Usuario no encontrado");
+                writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, ErrorCode.USER_NOT_FOUND, request.getRequestURI());
                 return;
             }
 
             if (!user.getActive()) {
-                log.warn("Usuario desactivado intentando acceder: {}", username);
+                log.warn("Inactive user trying to access: {}", username);
                 SecurityContextHolder.clearContext();
-                response.sendError(HttpServletResponse.SC_FORBIDDEN, 
-                    "Tu cuenta está desactivada. Contacta al administrador.");
+                writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, ErrorCode.USER_INACTIVE, request.getRequestURI());
                 return;
             }
 
@@ -90,11 +95,16 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
                 request.setAttribute("currentAccessId", accessId);
             }
 
-            log.debug("Usuario {} autenticado con {} permisos desde BD", username, authorities.size());
+            log.debug("User {} authenticated with {} permissions from DB", username, authorities.size());
 
         } catch (Exception e) {
-            log.error("Error validando token: {}", e.getMessage());
+            log.error("Error validating token: {}", e.getMessage());
             SecurityContextHolder.clearContext();
+            // Optionally we could return an error here, but standard behavior for invalid token in filter 
+            // is often to just clear context and let the entry point handle it if auth is required.
+            // However, if we want to be explicit about "Invalid Token":
+            // writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, ErrorCode.INVALID_CREDENTIALS, request.getRequestURI());
+            // return;
         }
 
         chain.doFilter(request, response);
@@ -111,5 +121,18 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         });
 
         return authorities;
+    }
+
+    private void writeErrorResponse(HttpServletResponse response, int status, ErrorCode errorCode, String path) throws IOException {
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("timestamp", java.time.LocalDateTime.now().toString());
+        errorResponse.put("status", status);
+        errorResponse.put("error", errorCode.name());
+        errorResponse.put("errorCode", errorCode.getCode());
+        errorResponse.put("path", path);
+        
+        response.setContentType("application/json");
+        response.setStatus(status);
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 }

@@ -1,26 +1,18 @@
 package com.unimagdalena.conectaCiudad.enums;
 
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-@Getter
-@RequiredArgsConstructor
 public enum CitizenActionType {
 
-    CITIZEN_VOTE("CITIZEN_VOTE", "Voto ciudadano en proyecto"),
-    CITIZEN_COMMENT("CITIZEN_COMMENT", "Comentario ciudadano en proyecto");
-
-    private final String code;
-    private final String description;
+    CITIZEN_VOTE,
+    CITIZEN_COMMENT;
 
     public String getActionCode() {
-        return this.code;
+        return this.name();
     }
 
     public static boolean isValidCitizenAction(String code) {
         if (code == null) return false;
         for (CitizenActionType type : values()) {
-            if (type.code.equals(code)) {
+            if (type.name().equals(code)) {
                 return true;
             }
         }
@@ -29,10 +21,10 @@ public enum CitizenActionType {
 
     public static CitizenActionType fromCode(String code) {
         for (CitizenActionType type : values()) {
-            if (type.code.equals(code)) {
+            if (type.name().equals(code)) {
                 return type;
             }
         }
-        throw new IllegalArgumentException("Invalid citizen action code: " + code);
+        throw new IllegalArgumentException(code);
     }
 }

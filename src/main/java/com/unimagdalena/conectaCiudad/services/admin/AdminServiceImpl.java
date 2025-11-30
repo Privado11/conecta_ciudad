@@ -105,7 +105,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_CREATED.name(),
-                    "Error al crear usuario: " + userDto.email(),
+                    "Error registering user: " + userDto.email(),
                     e.getMessage()
             );
             throw e;
@@ -135,7 +135,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_UPDATED.name(),
-                    "Error al actualizar usuario " + userId,
+                    "Error updating user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -165,7 +165,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_DELETED.name(),
-                    "Error al eliminar usuario " + userId,
+                    "Error deleting user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -197,7 +197,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_ACTIVATED.name(),
-                    "Error al cambiar estado del usuario " + userId,
+                    "Error changing status for user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -232,7 +232,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_ROLE_ADDED.name(),
-                    "Error al asignar rol al usuario " + userId,
+                    "Error changing role for user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -271,7 +271,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_ROLE_REMOVED.name(),
-                    "Error al remover rol del usuario " + userId,
+                    "Error removing role for user " + userId,
                     e.getMessage()
             );
             throw e;
@@ -476,9 +476,7 @@ public class AdminServiceImpl implements AdminService {
             List<UserSaveDto> users = parseCSVFile(file);
 
             if (users.isEmpty()) {
-                throw new BadRequestException(
-                        "No se encontraron usuarios válidos en el archivo CSV"
-                );
+                throw new BadRequestException(ErrorCode.CSV_EMPTY);
             }
 
             log.info("Se parsearon {} registros del CSV", users.size());
@@ -488,7 +486,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     UserActionType.USER_BULK_IMPORT.name(),
-                    "Error al importar CSV: " + file.getOriginalFilename(),
+                    "Error importing users from CSV",
                     e.getMessage()
             );
             throw e;
@@ -553,11 +551,11 @@ public class AdminServiceImpl implements AdminService {
             Pageable pageable
     ) {
 
-        validateDateRange(projectStartFrom, projectStartTo, "inicio del proyecto");
-        validateDateRange(projectEndFrom, projectEndTo, "fin del proyecto");
-        validateDateRange(votingStartFrom, votingStartTo, "inicio de votación");
-        validateDateRange(votingEndFrom, votingEndTo, "fin de votación");
-        validateDateRange(createdFrom, createdTo, "creación");
+        validateDateRange(projectStartFrom, projectStartTo);
+        validateDateRange(projectEndFrom, projectEndTo);
+        validateDateRange(votingStartFrom, votingStartTo);
+        validateDateRange(votingEndFrom, votingEndTo);
+        validateDateRange(createdFrom, createdTo);
         String normalizedSearchTerm = (searchTerm != null && !searchTerm.trim().isEmpty())
                 ? searchTerm.trim()
                 : null;
@@ -592,8 +590,8 @@ public class AdminServiceImpl implements AdminService {
 
             if (!project.getStatus().canBeReviewed()) {
                 throw new BadRequestException(
-                        "No se pueden reasignar el curador. El proyecto debe estar en revisión. Estado actual: " +
-                                project.getStatus().getDisplayName()
+                        ErrorCode.PROJECT_NOT_REVIEWABLE,
+                        Map.of("currentStatus", project.getStatus().name())
                 );
             }
 
@@ -608,15 +606,15 @@ public class AdminServiceImpl implements AdminService {
             metadata.put("projectName", project.getName());
             metadata.put("projectId", projectId);
             metadata.put("oldCuratorId", oldCurator != null ? oldCurator.getId() : null);
-            metadata.put("oldCuratorName", oldCurator != null ? oldCurator.getName() : "ninguno");
+            metadata.put("oldCuratorName", oldCurator != null ? oldCurator.getName() : null);
             metadata.put("newCuratorId", newCurator.getId());
             metadata.put("newCuratorName", newCurator.getName());
 
             auditHelper.logComplete(
                     ProjectActionType.CURATOR_REASSIGNED.name(),
-                    String.format("Curador reasignado en proyecto '%s': %s → %s",
+                    String.format("Curator reassigned in project '%s': %s → %s",
                             project.getName(),
-                            oldCurator != null ? oldCurator.getName() : "ninguno",
+                            oldCurator != null ? oldCurator.getName() : "none",
                             newCurator.getName()),
                     EntityType.REVIEW,
                     review.getId(),
@@ -629,7 +627,7 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             auditHelper.logFailure(
                     ProjectActionType.CURATOR_REASSIGNED.name(),
-                    "Error al reasignar curador al proyecto " + projectId,
+                    "Error changing project status " + projectId,
                     e.getMessage()
             );
             throw e;
@@ -655,8 +653,11 @@ public class AdminServiceImpl implements AdminService {
         String normalized = roleName == null ? "" : roleName.trim().toUpperCase();
         if (!ALLOWED_ROLE_NAMES.contains(normalized)) {
             throw new BadRequestException(
-                    "Rol no permitido: " + roleName +
-                            ". Roles válidos: " + String.join(", ", ALLOWED_ROLE_NAMES)
+                    ErrorCode.INVALID_ROLE_FOR_OPERATION,
+                    Map.of(
+                            "providedRole", roleName,
+                            "allowedRoles", String.join(", ", ALLOWED_ROLE_NAMES)
+                    )
             );
         }
         return normalized;
@@ -672,7 +673,8 @@ public class AdminServiceImpl implements AdminService {
     private void validateRolesProvided(List<String> roles) {
         if (roles == null || roles.isEmpty()) {
             throw new BadRequestException(
-                    "Se debe proporcionar al menos un rol para el usuario"
+                    ErrorCode.REQUIRED_FIELD,
+                    Map.of("field", "roles")
             );
         }
     }
@@ -694,10 +696,12 @@ public class AdminServiceImpl implements AdminService {
                 .anyMatch(u -> nationalId.equalsIgnoreCase(u.getNationalId()));
 
         if (emailExists && nationalIdExists) {
-            throw new DuplicateResourceException(
-                    "User",
-                    "email y nationalId",
-                    String.format("email: %s y cédula: %s", email, nationalId)
+            throw new BadRequestException(
+                    ErrorCode.DUPLICATE_EMAIL_AND_NATIONAL_ID,
+                    Map.of(
+                            "email", email,
+                            "nationalId", nationalId
+                    )
             );
         } else if (emailExists) {
             throw new DuplicateResourceException("User", "email", email);
@@ -713,10 +717,9 @@ public class AdminServiceImpl implements AdminService {
 
         if (activeProjects > 0) {
             throw new BadRequestException(
-                    String.format(
-                            "No se puede eliminar el usuario porque tiene %d proyecto(s) activo(s). " +
-                                    "Finalice o reasigne los proyectos primero.",
-                            activeProjects
+                    ErrorCode.CANNOT_DEACTIVATE_SELF,
+                    Map.of(
+                            "activeProjects", activeProjects
                     )
             );
         }
@@ -731,8 +734,9 @@ public class AdminServiceImpl implements AdminService {
         }
 
         User systemUser = userRepository.findById(SYSTEM_USER_ID)
-                .orElseThrow(() -> new IllegalStateException(
-                        "Usuario sistema no encontrado. Cree un usuario con ID=" + SYSTEM_USER_ID
+                .orElseThrow(() -> new BadRequestException(
+                        ErrorCode.SYSTEM_USER_NOT_FOUND,
+                        Map.of("systemUserId", SYSTEM_USER_ID)
                 ));
 
         log.info("Reasignando {} proyectos inactivos al usuario sistema",
@@ -775,9 +779,7 @@ public class AdminServiceImpl implements AdminService {
                 .collect(Collectors.toList());
 
         if (roles.isEmpty()) {
-            throw new BadRequestException(
-                    "Los roles proporcionados no existen en la base de datos"
-            );
+            throw new BadRequestException(ErrorCode.ROLE_NOT_FOUND);
         }
 
         return roles;
@@ -882,7 +884,7 @@ public class AdminServiceImpl implements AdminService {
             if (emailMap.containsKey(user.email())) {
                 errors.add(new UserImportError(
                         rowNumber, user.email(), user.nationalId(), role,
-                        "Email duplicado en el CSV (también en fila " + emailMap.get(user.email()) + ")"
+                        ErrorCode.CSV_DUPLICATE_EMAIL.getCode() + ": row " + emailMap.get(user.email())
                 ));
                 continue;
             }
@@ -890,7 +892,7 @@ public class AdminServiceImpl implements AdminService {
             if (nationalIdMap.containsKey(user.nationalId())) {
                 errors.add(new UserImportError(
                         rowNumber, user.email(), user.nationalId(), role,
-                        "Cédula duplicada en el CSV (también en fila " + nationalIdMap.get(user.nationalId()) + ")"
+                        ErrorCode.CSV_DUPLICATE_NATIONAL_ID.getCode() + ": row " + nationalIdMap.get(user.nationalId())
                 ));
                 continue;
             }
@@ -943,7 +945,7 @@ public class AdminServiceImpl implements AdminService {
             if (existingEmailMap.containsKey(user.email())) {
                 errors.add(new UserImportError(
                         rowNumber, user.email(), user.nationalId(), role,
-                        "El email ya existe en la base de datos"
+                        ErrorCode.CSV_EMAIL_EXISTS.getCode()
                 ));
                 continue;
             }
@@ -951,7 +953,7 @@ public class AdminServiceImpl implements AdminService {
             if (existingNationalIdMap.containsKey(user.nationalId())) {
                 errors.add(new UserImportError(
                         rowNumber, user.email(), user.nationalId(), role,
-                        "La cédula ya existe en la base de datos"
+                        ErrorCode.CSV_NATIONAL_ID_EXISTS.getCode()
                 ));
                 continue;
             }
@@ -1003,7 +1005,7 @@ public class AdminServiceImpl implements AdminService {
 
         } catch (Exception e) {
             log.error("Error guardando usuarios en batch: {}", e.getMessage(), e);
-            throw new BadRequestException("Error al guardar usuarios: " + e.getMessage());
+            throw new BadRequestException(ErrorCode.CSV_SAVE_ERROR);
         }
     }
 
@@ -1011,29 +1013,29 @@ public class AdminServiceImpl implements AdminService {
         List<String> errors = new ArrayList<>();
 
         if (user.name() == null || user.name().isBlank()) {
-            errors.add("El nombre es obligatorio");
+            errors.add(ErrorCode.CSV_FIELD_NAME_REQUIRED.getCode());
         }
 
         if (user.email() == null || user.email().isBlank()) {
-            errors.add("El email es obligatorio");
+            errors.add(ErrorCode.CSV_FIELD_EMAIL_REQUIRED.getCode());
         } else if (!user.email().matches(EMAIL_REGEX)) {
-            errors.add("Formato de email inválido");
+            errors.add(ErrorCode.CSV_FIELD_EMAIL_INVALID.getCode());
         }
 
         if (user.nationalId() == null || user.nationalId().isBlank()) {
-            errors.add("La cédula es obligatoria");
+            errors.add(ErrorCode.CSV_FIELD_NATIONAL_ID_REQUIRED.getCode());
         }
 
         if (user.phone() == null || user.phone().isBlank()) {
-            errors.add("El teléfono es obligatorio");
+            errors.add(ErrorCode.CSV_FIELD_PHONE_REQUIRED.getCode());
         } else if (!user.phone().matches(PHONE_REGEX)) {
-            errors.add("Formato de teléfono inválido");
+            errors.add(ErrorCode.CSV_FIELD_PHONE_INVALID.getCode());
         }
 
         if (user.password() == null || user.password().isBlank()) {
-            errors.add("La contraseña es obligatoria");
+            errors.add(ErrorCode.CSV_FIELD_PASSWORD_REQUIRED.getCode());
         } else if (user.password().length() < MIN_PASSWORD_LENGTH) {
-            errors.add("La contraseña debe tener al menos " + MIN_PASSWORD_LENGTH + " caracteres");
+            errors.add(ErrorCode.CSV_FIELD_PASSWORD_TOO_SHORT.getCode() + ": min " + MIN_PASSWORD_LENGTH);
         }
 
         return errors;
@@ -1059,18 +1061,21 @@ public class AdminServiceImpl implements AdminService {
 
     private void validateCSVFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new BadRequestException("El archivo está vacío");
+            throw new BadRequestException(ErrorCode.FILE_EMPTY);
         }
 
         String filename = file.getOriginalFilename();
         if (filename == null || !filename.toLowerCase().endsWith(".csv")) {
-            throw new BadRequestException("El archivo debe tener extensión .csv");
+            throw new BadRequestException(
+                    ErrorCode.FILE_INVALID_EXTENSION,
+                    Map.of("expectedExtension", ".csv")
+            );
         }
 
         if (file.getSize() > MAX_CSV_SIZE_BYTES) {
             throw new BadRequestException(
-                    String.format("El archivo es demasiado grande. Tamaño máximo: %.2f MB",
-                            MAX_CSV_SIZE_BYTES / (1024.0 * 1024.0))
+                    ErrorCode.CSV_FILE_TOO_LARGE,
+                    Map.of("maxSizeMB", String.format("%.2f", MAX_CSV_SIZE_BYTES / (1024.0 * 1024.0)))
             );
         }
 
@@ -1086,14 +1091,14 @@ public class AdminServiceImpl implements AdminService {
             List<String[]> records = reader.readAll();
 
             if (records.isEmpty()) {
-                throw new BadRequestException("El archivo CSV está vacío");
+                throw new BadRequestException(ErrorCode.CSV_EMPTY);
             }
 
             String[] headers = records.get(0);
             if (looksLikeDataRow(headers)) {
                 throw new BadRequestException(
-                        "El archivo CSV debe incluir una fila de encabezado con el orden: " +
-                                String.join(", ", EXPECTED_CSV_HEADERS)
+                        ErrorCode.CSV_INVALID_HEADERS,
+                        Map.of("expectedHeaders", String.join(", ", EXPECTED_CSV_HEADERS))
                 );
             }
 
@@ -1123,7 +1128,7 @@ public class AdminServiceImpl implements AdminService {
             }
 
         } catch (CsvException e) {
-            throw new BadRequestException("Error al leer el archivo CSV: " + e.getMessage());
+            throw new BadRequestException(ErrorCode.CSV_READ_ERROR);
         }
 
         return users;
@@ -1140,30 +1145,37 @@ public class AdminServiceImpl implements AdminService {
     private void validateCSVHeaders(String[] headerRow) {
         if (headerRow == null || headerRow.length < EXPECTED_CSV_HEADERS.length) {
             throw new BadRequestException(
-                    String.format("El archivo CSV debe tener al menos %d columnas. " +
-                                    "Orden esperado: %s",
-                            EXPECTED_CSV_HEADERS.length,
-                            String.join(", ", EXPECTED_CSV_HEADERS))
+                    ErrorCode.CSV_INSUFFICIENT_COLUMNS,
+                    Map.of(
+                            "requiredColumns", EXPECTED_CSV_HEADERS.length,
+                            "providedColumns", headerRow != null ? headerRow.length : 0,
+                            "expectedHeaders", String.join(", ", EXPECTED_CSV_HEADERS)
+                    )
             );
         }
 
-        List<String> errors = new ArrayList<>();
+        List<Map<String, Object>> columnErrors = new ArrayList<>();
 
         for (int i = 0; i < EXPECTED_CSV_HEADERS.length; i++) {
             String expected = EXPECTED_CSV_HEADERS[i].toLowerCase();
             String actual = cleanCSVField(headerRow[i]).toLowerCase();
 
             if (!actual.equals(expected)) {
-                errors.add(String.format("Columna %d: se esperaba '%s' pero se encontró '%s'",
-                        i + 1, expected, actual));
+                columnErrors.add(Map.of(
+                        "columnNumber", i + 1,
+                        "expected", expected,
+                        "actual", actual
+                ));
             }
         }
 
-        if (!errors.isEmpty()) {
+        if (!columnErrors.isEmpty()) {
             throw new BadRequestException(
-                    "El archivo CSV no tiene el orden correcto de columnas:\n" +
-                            String.join("\n", errors) + "\n\n" +
-                            "Orden esperado: " + String.join(", ", EXPECTED_CSV_HEADERS)
+                    ErrorCode.CSV_COLUMN_MISMATCH,
+                    Map.of(
+                            "columnErrors", columnErrors,
+                            "expectedHeaders", String.join(", ", EXPECTED_CSV_HEADERS)
+                    )
             );
         }
     }
@@ -1178,9 +1190,12 @@ public class AdminServiceImpl implements AdminService {
     private UserSaveDto parseUserFromCSVRow(String[] record) {
         if (record.length < EXPECTED_CSV_HEADERS.length) {
             throw new BadRequestException(
-                    String.format("Formato incorrecto. Se esperan %d columnas en el orden: %s",
-                            EXPECTED_CSV_HEADERS.length,
-                            String.join(", ", EXPECTED_CSV_HEADERS))
+                    ErrorCode.CSV_INVALID_FORMAT,
+                    Map.of(
+                            "requiredColumns", EXPECTED_CSV_HEADERS.length,
+                            "providedColumns", record.length,
+                            "expectedHeaders", String.join(", ", EXPECTED_CSV_HEADERS)
+                    )
             );
         }
 
@@ -1329,7 +1344,7 @@ public class AdminServiceImpl implements AdminService {
 
         auditHelper.logComplete(
                 UserActionType.USER_CREATED.name(),
-                "Usuario '" + user.getName() + "' creado con rol: " + roleNames,
+                String.format("User '%s' registered by admin", user.getName()),
                 EntityType.USER,
                 user.getId(),
                 ActionResult.SUCCESS,
@@ -1374,8 +1389,8 @@ public class AdminServiceImpl implements AdminService {
         auditHelper.logComplete(
                 UserActionType.USER_UPDATED.name(),
                 metadata.isEmpty()
-                        ? "Usuario actualizado sin cambios efectivos"
-                        : "Usuario '" + newUser.getName() + "' actualizado",
+                        ? "User '" + newUser.getName() + "' updated by admin with no effective changes"
+                        : "User '" + newUser.getName() + "' updated by admin",
                 EntityType.USER,
                 userId,
                 ActionResult.SUCCESS,
@@ -1391,7 +1406,7 @@ public class AdminServiceImpl implements AdminService {
 
         auditHelper.logComplete(
                 UserActionType.USER_DELETED.name(),
-                "Usuario '" + userName + "' (" + userEmail + ") eliminado",
+                "User '" + userName + "' (" + userEmail + ") deleted by admin",
                 EntityType.USER,
                 userId,
                 ActionResult.SUCCESS,
@@ -1409,7 +1424,7 @@ public class AdminServiceImpl implements AdminService {
 
         auditHelper.logComplete(
                 newStatus ? UserActionType.USER_ACTIVATED.name() : UserActionType.USER_DEACTIVATED.name(),
-                "Usuario '" + userEmail + "' " + (newStatus ? "activado" : "desactivado"),
+                "User '" + userEmail + "' " + (newStatus ? "activated" : "deactivated"),
                 EntityType.USER,
                 userId,
                 ActionResult.SUCCESS,
@@ -1426,8 +1441,8 @@ public class AdminServiceImpl implements AdminService {
         metadata.put("newRole", newRole);
 
         auditHelper.logComplete(
-                UserActionType.USER_ROLE_ADDED.name(),
-                String.format("Rol del usuario '%s' cambiado de '%s' a '%s'",
+                UserActionType.USER_ROLE_CHANGED.name(),
+                String.format("User '%s' role changed from '%s' to '%s'",
                         userName, oldRole, newRole),
                 EntityType.USER,
                 userId,
@@ -1446,8 +1461,8 @@ public class AdminServiceImpl implements AdminService {
 
         auditHelper.logComplete(
                 UserActionType.USER_ROLE_REMOVED.name(),
-                "Rol '" + removedRole + "' removido del usuario '" + userName + "'" +
-                        (assignedDefault ? " (asignado rol por defecto)" : ""),
+                "Role '" + removedRole + "' removed from user '" + userName + "'" +
+                        (assignedDefault ? " (default role assigned)" : ""),
                 EntityType.USER,
                 userId,
                 ActionResult.SUCCESS,
@@ -1467,8 +1482,8 @@ public class AdminServiceImpl implements AdminService {
 
         auditHelper.logComplete(
                 UserActionType.USER_BULK_IMPORT.name(),
-                String.format("Importación masiva: %d exitosos, %d fallidos de %d totales",
-                        result.successCount(), result.failCount(), result.totalRecords()),
+                String.format("Imported %d users from CSV. Success: %d, Failed: %d",
+                        result.totalRecords(), result.successCount(), result.failCount()),
                 EntityType.USER,
                 null,
                 ActionResult.SUCCESS,
@@ -1511,19 +1526,15 @@ public class AdminServiceImpl implements AdminService {
         return reviews.get(0);
     }
 
-    private void validateDateRange(LocalDate from, LocalDate to, String fieldName) {
+    private void validateDateRange(LocalDate from, LocalDate to) {
         if (from != null && to != null && to.isBefore(from)) {
-            throw new BadRequestException(
-                    String.format("La fecha '%s hasta' debe ser posterior a la fecha 'desde'", fieldName)
-            );
+            throw new BadRequestException(ErrorCode.INVALID_DATE_RANGE);
         }
     }
 
-    private void validateDateRange(OffsetDateTime from, OffsetDateTime to, String fieldName) {
+    private void validateDateRange(OffsetDateTime from, OffsetDateTime to) {
         if (from != null && to != null && to.isBefore(from)) {
-            throw new BadRequestException(
-                    String.format("La fecha '%s hasta' debe ser posterior a la fecha 'desde'", fieldName)
-            );
+            throw new BadRequestException(ErrorCode.INVALID_DATE_RANGE);
         }
     }
 
