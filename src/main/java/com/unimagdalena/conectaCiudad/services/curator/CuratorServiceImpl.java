@@ -11,21 +11,20 @@ import com.unimagdalena.conectaCiudad.Dto.review.ReviewHistoryPageDto;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.enums.ActionResult;
-import com.unimagdalena.conectaCiudad.enums.EntityType;
 import com.unimagdalena.conectaCiudad.enums.ErrorCode;
-import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+import com.unimagdalena.conectaCiudad.events.ReviewCompletedEvent;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ForbiddenException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.specifications.ReviewSpecifications;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -35,7 +34,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,64 +44,41 @@ public class CuratorServiceImpl implements CuratorService {
 
     private final ReviewRepository reviewRepository;
     private final ProjectRepository projectRepository;
-    private final AuditHelper auditHelper;
+    private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ProjectMapper projectMapper;
 
     @Override
     public ProjectDto addObservations(Long projectId, Long curatorId, String notes, Long accessId) {
-        try {
-
-            if(notes.length() < 10){
-                throw new BadRequestException(
-                        ErrorCode.REVIEW_OBSERVATIONS_TOO_SHORT,
-                        Map.of("minLength", 10)
-                );
-            }
-
-            Project project = findProjectById(projectId);
-            Review review = getProjectReview(projectId);
-            validateCuratorAccess(review, curatorId);
-
-            if (!project.getStatus().canBeReviewed()) {
-                throw new BadRequestException(
-                        ErrorCode.REVIEW_NOT_REVIEWABLE,
-                        Map.of("currentStatus", project.getStatus().name())
-                );
-            }
-
-            review.setNotes(notes);
-            review.setReviewedAt(OffsetDateTime.now());
-            reviewRepository.save(review);
-
-            ProjectStatus oldStatus = project.getStatus();
-            project.setStatus(ProjectStatus.RETURNED_WITH_OBSERVATIONS);
-            projectRepository.save(project);
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("projectId", projectId);
-            metadata.put("oldStatus", oldStatus.name());
-            metadata.put("newStatus", ProjectStatus.RETURNED_WITH_OBSERVATIONS.name());
-            metadata.put("notesLength", notes != null ? notes.length() : 0);
-
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
-                    "Observations added to project '" + project.getName() + "'",
-                    EntityType.REVIEW,
-                    review.getId(),
-                    ActionResult.SUCCESS,
-                    metadata
+        if(notes.length() < 10){
+            throw new BadRequestException(
+                    ErrorCode.REVIEW_OBSERVATIONS_TOO_SHORT,
+                    Map.of("minLength", 10)
             );
-
-            return projectMapper.toDto(project);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_OBSERVATIONS_ADDED.name(),
-                    "Error adding observations to project " + projectId,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        Project project = findProjectById(projectId);
+        Review review = getProjectReview(projectId);
+        validateCuratorAccess(review, curatorId);
+
+        if (!project.getStatus().canBeReviewed()) {
+            throw new BadRequestException(
+                    ErrorCode.REVIEW_NOT_REVIEWABLE,
+                    Map.of("currentStatus", project.getStatus().name())
+            );
+        }
+
+        review.setNotes(notes);
+        review.setReviewedAt(OffsetDateTime.now());
+        reviewRepository.save(review);
+
+        project.setStatus(ProjectStatus.RETURNED_WITH_OBSERVATIONS);
+        projectRepository.save(project);
+
+        User curator = findUserById(curatorId);
+        eventPublisher.publishEvent(new ReviewCompletedEvent(this, review, ProjectStatus.RETURNED_WITH_OBSERVATIONS, curator));
+
+        return projectMapper.toDto(project);
     }
 
     @Override
@@ -114,70 +89,31 @@ public class CuratorServiceImpl implements CuratorService {
             LocalDate votingEndAt,
             Long accessId
     ) {
-        try {
-            Project project = findProjectById(projectId);
-            Review review = getProjectReview(projectId);
-            validateCuratorAccess(review, curatorId);
+        Project project = findProjectById(projectId);
+        Review review = getProjectReview(projectId);
+        validateCuratorAccess(review, curatorId);
 
-            validateVotingDates(votingStartAt, votingEndAt, project);
+        validateVotingDates(votingStartAt, votingEndAt, project);
 
-            if (!project.getStatus().canBeReviewed()) {
-                throw new BadRequestException(
-                        ErrorCode.REVIEW_NOT_APPROVABLE,
-                        Map.of("currentStatus", project.getStatus().name())
-                );
-            }
-
-            review.setReviewedAt(OffsetDateTime.now());
-            reviewRepository.save(review);
-
-            ProjectStatus oldStatus = project.getStatus();
-            project.setStatus(ProjectStatus.READY_TO_PUBLISH);
-
-            project.setVotingStartAt(votingStartAt);
-            project.setVotingEndAt(votingEndAt);
-
-            projectRepository.save(project);
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("projectName", project.getName());
-            metadata.put("oldStatus", oldStatus.name());
-            metadata.put("newStatus", ProjectStatus.READY_TO_PUBLISH.name());
-            metadata.put("votingStartAt", votingStartAt.toString());
-            metadata.put("votingEndAt", votingEndAt.toString());
-            metadata.put("votingDurationDays",
-                    java.time.Duration.between(
-                            votingStartAt.atStartOfDay(),
-                            votingEndAt.atStartOfDay()
-                    ).toDays());
-            metadata.put("reviewDuration",
-                    java.time.Duration.between(
-                            review.getStartAt().toLocalDate().atStartOfDay(),
-                            OffsetDateTime.now().toLocalDate().atStartOfDay()
-                    ).toDays());
-
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_APPROVED.name(),
-                    String.format("Project '%s' approved and ready to publish. Voting: %s - %s",
-                            project.getName(),
-                            votingStartAt,
-                            votingEndAt),
-                    EntityType.PROJECT,
-                    projectId,
-                    ActionResult.SUCCESS,
-                    metadata
+        if (!project.getStatus().canBeReviewed()) {
+            throw new BadRequestException(
+                    ErrorCode.REVIEW_NOT_APPROVABLE,
+                    Map.of("currentStatus", project.getStatus().name())
             );
-
-            return projectMapper.toDto(project);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_APPROVED.name(),
-                    "Error approving project " + projectId,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        review.setReviewedAt(OffsetDateTime.now());
+        reviewRepository.save(review);
+
+        project.setStatus(ProjectStatus.READY_TO_PUBLISH);
+        project.setVotingStartAt(votingStartAt);
+        project.setVotingEndAt(votingEndAt);
+        projectRepository.save(project);
+
+        User curator = findUserById(curatorId);
+        eventPublisher.publishEvent(new ReviewCompletedEvent(this, review, ProjectStatus.READY_TO_PUBLISH, curator));
+
+        return projectMapper.toDto(project);
     }
 
     @Override
@@ -354,6 +290,11 @@ private ReviewHistoryDto buildReviewHistoryDto(Review review, OffsetDateTime now
         if (review.getCurator() == null || !Objects.equals(review.getCurator().getId(), curatorId)) {
             throw new ForbiddenException(ErrorCode.ACCESS_DENIED_NOT_ASSIGNED_CURATOR);
         }
+    }
+
+    private User findUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
 
     private Project findProjectById(Long projectId) {

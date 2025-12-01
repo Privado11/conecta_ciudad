@@ -4,24 +4,26 @@ import com.unimagdalena.conectaCiudad.Dto.leader.ProjectVotingResultDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectMapper;
 import com.unimagdalena.conectaCiudad.Dto.project.ProjectSaveDto;
-import com.unimagdalena.conectaCiudad.Dto.voting.VotingResultsDto;
-import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Review;
 import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.enums.ActionResult;
-import com.unimagdalena.conectaCiudad.enums.EntityType;
 import com.unimagdalena.conectaCiudad.enums.ErrorCode;
-import com.unimagdalena.conectaCiudad.enums.ProjectActionType;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+import com.unimagdalena.conectaCiudad.events.ProjectCreatedEvent;
+import com.unimagdalena.conectaCiudad.events.ProjectDeletedEvent;
+import com.unimagdalena.conectaCiudad.events.ProjectSubmittedEvent;
+import com.unimagdalena.conectaCiudad.events.ProjectUpdatedEvent;
+import com.unimagdalena.conectaCiudad.events.ReviewAssignedEvent;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ForbiddenException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.repositories.VoteRepository;
+import com.unimagdalena.conectaCiudad.enums.VoteType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,212 +36,119 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LeaderServiceImpl implements LeaderService{
 
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
     private final ProjectMapper projectMapper;
     private final ReviewRepository reviewRepository;
-    private final VotingClient votingClient;
+    private final VoteRepository voteRepository;
 
     @Override
     public ProjectDto createProject(ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
-        try {
-            validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
+        validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
+        validateStartDate(projectSaveDto.startAt(), 20);
 
-            validateStartDate(projectSaveDto.startAt(), 20);
+        User creator = findUserById(creatorId);
 
+        Project project = projectMapper.toEntity(projectSaveDto);
+        project.setCreator(creator);
+        project.setStatus(ProjectStatus.DRAFT);
+        Project savedProject = projectRepository.save(project);
 
-            User creator = findUserById(creatorId);
+        eventPublisher.publishEvent(new ProjectCreatedEvent(this, savedProject, creator));
 
-            Project project = projectMapper.toEntity(projectSaveDto);
-            project.setCreator(creator);
-            project.setStatus(ProjectStatus.DRAFT);
-            Project savedProject = projectRepository.save(project);
-
-
-            Map<String, Object> metadata = buildProjectMetadata(savedProject);
-            metadata.put("budget", savedProject.getBudget());
-
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_CREATED.name(),
-                    "Project '" + savedProject.getName() + "' created with ID " + savedProject.getId(),
-                    EntityType.PROJECT,
-                    savedProject.getId(),
-                    ActionResult.SUCCESS,
-                    metadata
-            );
-
-            return projectMapper.toDto(savedProject);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_CREATED.name(),
-                    "Failed attempt to create project",
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return projectMapper.toDto(savedProject);
     }
 
     @Override
     public ProjectDto updateProject(Long id, ProjectSaveDto projectSaveDto, Long creatorId, Long accessId) {
-        try {
-            Project existingProject = findProjectById(id);
-            validateProjectOwnership(existingProject, creatorId);
+        Project existingProject = findProjectById(id);
+        validateProjectOwnership(existingProject, creatorId);
 
-            if (!existingProject.getStatus().isEditable()) {
-                throw new BadRequestException(
-                        ErrorCode.PROJECT_NOT_EDITABLE,
-                        Map.of("currentStatus", existingProject.getStatus().name())
-                );
-            }
-
-            validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
-
-            Map<String, Object> changes = buildChangeMetadata(existingProject, projectSaveDto);
-
-            updateProjectFields(existingProject, projectSaveDto);
-            Project updatedProject = projectRepository.save(existingProject);
-
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_UPDATED.name(),
-                    changes.isEmpty()
-                            ? "Project '" + updatedProject.getName() + "' updated with no effective changes"
-                            : "Project '" + updatedProject.getName() + "' updated",
-                    EntityType.PROJECT,
-                    id,
-                    ActionResult.SUCCESS,
-                    changes
+        if (!existingProject.getStatus().isEditable()) {
+            throw new BadRequestException(
+                    ErrorCode.PROJECT_NOT_EDITABLE,
+                    Map.of("currentStatus", existingProject.getStatus().name())
             );
-
-            return projectMapper.toDto(updatedProject);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_UPDATED.name(),
-                    "Error updating project " + id,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        validateProjectDates(projectSaveDto.startAt(), projectSaveDto.endAt());
+
+        User updater = findUserById(creatorId);
+        updateProjectFields(existingProject, projectSaveDto);
+        Project updatedProject = projectRepository.save(existingProject);
+
+        eventPublisher.publishEvent(new ProjectUpdatedEvent(this, updatedProject, updater));
+
+        return projectMapper.toDto(updatedProject);
     }
 
     @Override
     public void deleteProject(Long id) {
-        try {
-            Project project = findProjectById(id);
-            Map<String, Object> metadata = buildProjectMetadata(project);
-            if (project.getCreator() != null) {
-                metadata.put("creatorId", project.getCreator().getId());
-            }
+        Project project = findProjectById(id);
+        String projectName = project.getName();
+        User deleter = project.getCreator();
+        Long projectId = project.getId();
 
-            projectRepository.delete(project);
+        projectRepository.delete(project);
 
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_DELETED.name(),
-                    "Project '" + project.getName() + "' deleted successfully",
-                    EntityType.PROJECT,
-                    project.getId(),
-                    ActionResult.SUCCESS,
-                    metadata
-            );
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_DELETED.name(),
-                    "Error deleting project with ID " + id,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        eventPublisher.publishEvent(new ProjectDeletedEvent(this, projectId, projectName, deleter));
     }
 
     @Override
     public ProjectDto submitForReview(Long projectId, Long creatorId, Long accessId) {
-        try {
-            Project project = findProjectById(projectId);
-            validateProjectOwnership(project, creatorId);
-            validateStartDate(project.getStartAt(), 10);
+        Project project = findProjectById(projectId);
+        validateProjectOwnership(project, creatorId);
+        validateStartDate(project.getStartAt(), 10);
 
+        if (!project.getStatus().canBeSubmitted()) {
+            throw new BadRequestException(
+                    ErrorCode.PROJECT_NOT_SUBMITTABLE,
+                    Map.of("currentStatus", project.getStatus().name())
+            );
+        }
 
-            if (!project.getStatus().canBeSubmitted()) {
-                throw new BadRequestException(
-                        ErrorCode.PROJECT_NOT_SUBMITTABLE,
-                        Map.of("currentStatus", project.getStatus().name())
-                );
-            }
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        Review review;
 
-            List<Review> reviews = reviewRepository.findByProjectId(projectId);
-            Review review;
+        if (reviews.isEmpty() || reviews.get(0).getCurator() == null) {
+            assignCuratorIfAvailable(project);
 
-            if (reviews.isEmpty() || reviews.get(0).getCurator() == null) {
-                assignCuratorIfAvailable(project);
-
-                reviews = reviewRepository.findByProjectId(projectId);
-                if (reviews.isEmpty()) {
-                    Review emptyReview = Review.builder()
-                            .project(project)
-                            .curator(null)
-                            .startAt(null)
-                            .dueAt(null)
-                            .build();
-                    reviewRepository.save(emptyReview);
-                    review = emptyReview;
-                } else {
-                    review = reviews.get(0);
-                }
+            reviews = reviewRepository.findByProjectId(projectId);
+            if (reviews.isEmpty()) {
+                Review emptyReview = Review.builder()
+                        .project(project)
+                        .curator(null)
+                        .startAt(null)
+                        .dueAt(null)
+                        .build();
+                reviewRepository.save(emptyReview);
+                review = emptyReview;
             } else {
                 review = reviews.get(0);
-                if (project.getStatus() == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
-                    review.setStartAt(OffsetDateTime.now());
-                    review.setDueAt(OffsetDateTime.now().plusDays(5));
-                    review.setReviewedAt(null);
-                    reviewRepository.save(review);
-                }
             }
-
-
-            ProjectStatus oldStatus = project.getStatus();
-
-            if (review.getCurator() != null) {
-                project.setStatus(ProjectStatus.IN_REVIEW);
-            } else {
-                project.setStatus(ProjectStatus.PENDING_REVIEW);
+        } else {
+            review = reviews.get(0);
+            if (project.getStatus() == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
+                review.setStartAt(OffsetDateTime.now());
+                review.setDueAt(OffsetDateTime.now().plusDays(5));
+                review.setReviewedAt(null);
+                reviewRepository.save(review);
             }
-
-            Project updatedProject = projectRepository.save(project);
-
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("projectId", projectId);
-            metadata.put("projectName", project.getName());
-            metadata.put("oldStatus", oldStatus.name());
-            metadata.put("newStatus", ProjectStatus.PENDING_REVIEW.name());
-            metadata.put("curatorId", review.getCurator().getId());
-            metadata.put("curatorName", review.getCurator().getName());
-            metadata.put("isResubmission", oldStatus == ProjectStatus.RETURNED_WITH_OBSERVATIONS);
-
-            auditHelper.logComplete(
-                    ProjectActionType.PROJECT_SUBMITTED_FOR_REVIEW.name(),
-                    String.format("Project '%s' submitted for review - Curator: %s",
-                            project.getName(),
-                            review.getCurator().getName()),
-                    EntityType.PROJECT,
-                    projectId,
-                    ActionResult.SUCCESS,
-                    metadata
-            );
-
-            return projectMapper.toDto(updatedProject);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.PROJECT_SUBMITTED_FOR_REVIEW.name(),
-                    "Error submitting project " + projectId + " for review",
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        if (review.getCurator() != null) {
+            project.setStatus(ProjectStatus.IN_REVIEW);
+        } else {
+            project.setStatus(ProjectStatus.PENDING_REVIEW);
+        }
+
+        Project updatedProject = projectRepository.save(project);
+        User submitter = findUserById(creatorId);
+
+        eventPublisher.publishEvent(new ProjectSubmittedEvent(this, updatedProject, submitter));
+
+        return projectMapper.toDto(updatedProject);
     }
 
     @Override
@@ -259,13 +168,10 @@ public class LeaderServiceImpl implements LeaderService{
 
         return closedProjects.stream()
                 .map(project -> {
-                    VotingResultsDto results = votingClient.getProjectVotingResults(
-                            project.getId(),
-                            token
-                    );
-
-                    long votesInFavor = results != null ? results.votesInFavor() : 0L;
-                    long votesAgainst = results != null ? results.votesAgainst() : 0L;
+                    long votesInFavor = voteRepository.countByProjectIdAndVoteType(
+                            project.getId(), VoteType.IN_FAVOR);
+                    long votesAgainst = voteRepository.countByProjectIdAndVoteType(
+                            project.getId(), VoteType.AGAINST);
                     long totalVotes = votesInFavor + votesAgainst;
                     double approvalPercentage = totalVotes > 0 ? (votesInFavor * 100.0 / totalVotes) : 0.0;
                     String finalResult = approvalPercentage > 50.0 ? "APPROVED" : "REJECTED";
@@ -412,14 +318,9 @@ public class LeaderServiceImpl implements LeaderService{
                         .startAt(OffsetDateTime.now())
                         .dueAt(OffsetDateTime.now().plusDays(5))
                         .build();
-                reviewRepository.save(review);
+                Review savedReview = reviewRepository.save(review);
 
-                auditHelper.logEntity(
-                        ProjectActionType.CURATOR_ASSIGNED.name(),
-                        "Curator " + chosenCurator.getName() + " automatically assigned to project " + project.getName(),
-                        EntityType.PROJECT,
-                        project.getId()
-                );
+                eventPublisher.publishEvent(new ReviewAssignedEvent(this, savedReview, project.getCreator()));
             }
         }
     }

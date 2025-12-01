@@ -4,8 +4,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import com.unimagdalena.conectaCiudad.Dto.project.*;
-import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
-import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import org.springframework.stereotype.Service;
 
 import com.unimagdalena.conectaCiudad.entities.Project;
@@ -26,7 +24,6 @@ public class ProjectServiceImpl implements ProjectService {
     private final ProjectMapper projectMapper;
     private final ProjectReadyMapper projectReadyMapper;
     private final ProjectVotingMapper projectVotingMapper;
-    private final VotingClient votingClient;
 
 
     public ProjectDto findById(Long id) {

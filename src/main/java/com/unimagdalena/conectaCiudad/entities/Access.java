@@ -3,6 +3,7 @@ package com.unimagdalena.conectaCiudad.entities;
 import java.time.OffsetDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
+
 import jakarta.persistence.*;
 import lombok.*;
 

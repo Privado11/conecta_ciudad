@@ -8,6 +8,8 @@ import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import jakarta.persistence.*;
@@ -15,6 +17,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "projects")
+@Audited
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
@@ -73,6 +76,7 @@ public class Project {
     @Builder.Default
     private List<Review> reviews = new ArrayList<>();
 
+    @NotAudited
     @OneToMany(mappedBy = "project", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ProjectStatusHistory> statusHistory = new ArrayList<>();

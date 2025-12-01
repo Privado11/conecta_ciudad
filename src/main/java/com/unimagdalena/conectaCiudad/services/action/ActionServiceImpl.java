@@ -95,6 +95,8 @@ public class ActionServiceImpl implements ActionService {
                 .metadata(serializeMetadata(request.metadata()))
                 .user(user)
                 .access(access)
+                .ipAddress(request.ipAddress())
+                .userAgent(request.userAgent())
                 .build();
 
             enrichActionWithRequestData(action);
@@ -255,15 +257,20 @@ public class ActionServiceImpl implements ActionService {
     
 
     private void enrichActionWithRequestData(Action action) {
-        
-            String ipAddress = extractIpAddress();
-            String userAgent = request.getHeader("User-Agent");
+        try {
+            if (action.getIpAddress() == null) {
 
-            action.setIpAddress(ipAddress);
-            action.setUserAgent(userAgent != null
-                    ? userAgent.substring(0, Math.min(userAgent.length(), 500))
-                    : null);
-        
+                action.setIpAddress(extractIpAddress());
+            }
+            if (action.getUserAgent() == null) {
+                String userAgent = request.getHeader("User-Agent");
+                action.setUserAgent(userAgent != null
+                        ? userAgent.substring(0, Math.min(userAgent.length(), 500))
+                        : null);
+            }
+        } catch (Exception e) {
+            
+        }
     }
 
     private String extractIpAddress() {

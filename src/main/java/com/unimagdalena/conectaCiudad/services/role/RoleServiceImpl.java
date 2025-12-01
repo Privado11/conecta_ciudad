@@ -5,19 +5,21 @@ import com.unimagdalena.conectaCiudad.Dto.role.RoleDto;
 import com.unimagdalena.conectaCiudad.Dto.role.RoleMapper;
 import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.entities.Permission;
-import com.unimagdalena.conectaCiudad.enums.ActionResult;
-import com.unimagdalena.conectaCiudad.enums.EntityType;
+import com.unimagdalena.conectaCiudad.entities.User;
 import com.unimagdalena.conectaCiudad.enums.ErrorCode;
-import com.unimagdalena.conectaCiudad.enums.RoleActionType;
+import com.unimagdalena.conectaCiudad.events.RoleUpdatedEvent;
 import com.unimagdalena.conectaCiudad.exceptions.BadRequestException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.PermissionRepository;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,8 +32,9 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
     private final RoleMapper roleMapper;
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -71,135 +74,80 @@ public class RoleServiceImpl implements RoleService {
     @Override
     @Transactional
     public RoleDto updateRolePermissions(Long roleId, Set<String> permissionCodes) {
-        try {
-            Role role = roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
 
-            List<Permission> newPermissions = permissionRepository.findAll().stream()
-                    .filter(p -> permissionCodes.contains(p.getCode()))
-                    .toList();
+        List<Permission> newPermissions = permissionRepository.findAll().stream()
+                .filter(p -> permissionCodes.contains(p.getCode()))
+                .toList();
 
-            if (newPermissions.isEmpty()) {
-                throw new BadRequestException(ErrorCode.NO_VALID_PERMISSIONS);
-            }
-
-            Set<Permission> oldPermissions = new HashSet<>(role.getPermissions());
-            role.setPermissions(new HashSet<>(newPermissions));
-            Role updatedRole = roleRepository.save(role);
-
-            if (!oldPermissions.equals(updatedRole.getPermissions())) {
-                Map<String, Object> metadata = new HashMap<>();
-                metadata.put("roleName", role.getName());
-                metadata.put("oldPermissions", oldPermissions.stream().map(Permission::getCode).toList());
-                metadata.put("newPermissions", newPermissions.stream().map(Permission::getCode).toList());
-
-                auditHelper.logComplete(
-                        RoleActionType.ROLE_PERMISSIONS_UPDATED.name(),
-                        "Role permissions for '" + role.getName() + "' updated",
-                        EntityType.ROLE,
-                        roleId,
-                        ActionResult.SUCCESS,
-                        metadata
-                );
-            }
-
-            return roleMapper.toDto(updatedRole);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    RoleActionType.ROLE_PERMISSIONS_UPDATED.name(),
-                    "Error updating permissions for role " + roleId,
-                    e.getMessage()
-            );
-            throw e;
+        if (newPermissions.isEmpty()) {
+            throw new BadRequestException(ErrorCode.NO_VALID_PERMISSIONS);
         }
+
+        role.setPermissions(new HashSet<>(newPermissions));
+        Role updatedRole = roleRepository.save(role);
+
+        User currentUser = getCurrentUser();
+        eventPublisher.publishEvent(new RoleUpdatedEvent(this, updatedRole, currentUser));
+
+        return roleMapper.toDto(updatedRole);
     }
 
     @Override
     @Transactional
     public RoleDto addPermissionToRole(Long roleId, String permissionCode) {
-        try {
-            Role role = roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
 
-            Permission permission = permissionRepository.findByCode(permissionCode)
-                    .orElseThrow(() -> new ResourceNotFoundException("Permission", "code", permissionCode));
+        Permission permission = permissionRepository.findByCode(permissionCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Permission", "code", permissionCode));
 
-            boolean added = role.getPermissions().add(permission);
-            if (!added) {
-                throw new BadRequestException(
-                        ErrorCode.PERMISSION_ALREADY_ASSIGNED,
-                        Map.of("permissionCode", permissionCode)
-                );
-            }
-
-            Role savedRole = roleRepository.save(role);
-
-            auditHelper.logComplete(
-                    RoleActionType.ROLE_PERMISSION_ADDED.name(),
-                    "Permission '" + permissionCode + "' added to role '" + role.getName() + "'",
-                    EntityType.ROLE,
-                    roleId,
-                    ActionResult.SUCCESS,
-                    Map.of(
-                            "roleName", role.getName(),
-                            "permissionAdded", permissionCode
-                    )
+        boolean added = role.getPermissions().add(permission);
+        if (!added) {
+            throw new BadRequestException(
+                    ErrorCode.PERMISSION_ALREADY_ASSIGNED,
+                    Map.of("permissionCode", permissionCode)
             );
-
-            return roleMapper.toDto(savedRole);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    RoleActionType.ROLE_PERMISSION_ADDED.name(),
-                    "Error adding permission to role " + roleId,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        Role savedRole = roleRepository.save(role);
+        User currentUser = getCurrentUser();
+        eventPublisher.publishEvent(new RoleUpdatedEvent(this, savedRole, currentUser));
+
+        return roleMapper.toDto(savedRole);
     }
 
     @Override
     @Transactional
     public RoleDto removePermissionFromRole(Long roleId, String permissionCode) {
-        try {
-            Role role = roleRepository.findById(roleId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
+        Role role = roleRepository.findById(roleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "id", roleId));
 
-            Permission permission = permissionRepository.findByCode(permissionCode)
-                    .orElseThrow(() -> new ResourceNotFoundException("Permission", "code", permissionCode));
+        Permission permission = permissionRepository.findByCode(permissionCode)
+                .orElseThrow(() -> new ResourceNotFoundException("Permission", "code", permissionCode));
 
-            boolean removed = role.getPermissions().remove(permission);
-            if (!removed) {
-                throw new BadRequestException(
-                        ErrorCode.PERMISSION_NOT_ASSIGNED,
-                        Map.of("permissionCode", permissionCode)
-                );
-            }
-
-            Role savedRole = roleRepository.save(role);
-
-            auditHelper.logComplete(
-                    RoleActionType.ROLE_PERMISSION_REMOVED.name(),
-                    "Permission '" + permissionCode + "' removed from role '" + role.getName() + "'",
-                    EntityType.ROLE,
-                    roleId,
-                    ActionResult.SUCCESS,
-                    Map.of(
-                            "roleName", role.getName(),
-                            "permissionRemoved", permissionCode
-                    )
+        boolean removed = role.getPermissions().remove(permission);
+        if (!removed) {
+            throw new BadRequestException(
+                    ErrorCode.PERMISSION_NOT_ASSIGNED,
+                    Map.of("permissionCode", permissionCode)
             );
-
-            return roleMapper.toDto(savedRole);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    RoleActionType.ROLE_PERMISSION_REMOVED.name(),
-                    "Error removing permission from role " + roleId,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        Role savedRole = roleRepository.save(role);
+        User currentUser = getCurrentUser();
+        eventPublisher.publishEvent(new RoleUpdatedEvent(this, savedRole, currentUser));
+
+        return roleMapper.toDto(savedRole);
+    }
+
+    private User getCurrentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        String nationalId = authentication.getName();
+        return userRepository.findByNationalId(nationalId);
     }
 }

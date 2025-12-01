@@ -20,12 +20,10 @@ import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 import com.unimagdalena.conectaCiudad.Dto.access.AccessSaveDto;
 import com.unimagdalena.conectaCiudad.entities.Access;
 import com.unimagdalena.conectaCiudad.entities.User;
-import com.unimagdalena.conectaCiudad.enums.ActionResult;
-import com.unimagdalena.conectaCiudad.enums.EntityType;
-import com.unimagdalena.conectaCiudad.enums.UserActionType;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.events.UserLoggedInEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -44,8 +42,7 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final AccessService accessService;
-    private final AccessMapper accessMapper;
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -97,29 +94,12 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         }
 
         AccessDto accessDto = accessService.save(
-                new AccessSaveDto(userEntity, ipAddress, userAgent, location, true)
+                new AccessSaveDto(userEntity.getId(), ipAddress, userAgent, location, true)
         );
-        Access access = accessMapper.toEntity(accessDto);
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("ipAddress", ipAddress);
-        metadata.put("location", location);
-        metadata.put("userAgent", userAgent);
-        metadata.put("userId", userEntity.getId()); 
-        metadata.put("userEmail", userEntity.getEmail());
+        Access access = accessService.findById(accessDto.id());
 
-        try {
-            auditHelper.logCompleteWithAccess(
-                UserActionType.USER_LOGIN.name(),
-                "Successful login",
-                EntityType.ACCESS,
-                access.getId(),
-                ActionResult.SUCCESS,
-                metadata,
-                access  
-            );
-        } catch (Exception e) {
-            log.error("Error logging successful login: {}", e.getMessage(), e);
-        }
+        
+        eventPublisher.publishEvent(new UserLoggedInEvent(this, userEntity, access));
 
         List<String> roles = userEntity.getRoles()
                 .stream()
@@ -168,22 +148,9 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, ErrorCode.INVALID_CREDENTIALS);
 
         try {
-            String ipAddress = getIp(request);
-            String userAgent = request.getHeader("User-Agent");
-
-            // Warning: reading the stream again might fail if not cached, but assuming standard behavior here or that it was cached
-            // However, getReader() can only be called once. We should be careful. 
-            // Since we failed authentication, we might not have the user email easily if we can't re-read the stream.
-            // For now, we will skip the user lookup if we can't read the body safely or if it's complex to implement without a wrapper.
-            // But the original code did it, so let's try to keep it if possible, but it's risky.
-            // Actually, 'attemptAuthentication' already read the stream. We cannot read it again unless we used a ContentCachingRequestWrapper.
-            // The original code had this bug potential. I will wrap it in try-catch and just log generic failure if stream is closed.
-            
-            // BETTER APPROACH: We don't have the email here easily. 
-            // We'll just log the failure without user details if we can't get them.
-            
+           
         } catch (Exception e) {
-            // Ignore
+            
         }
     }
 
@@ -191,9 +158,9 @@ public class JwtAuthenticationFilter extends UsernamePasswordAuthenticationFilte
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("timestamp", java.time.LocalDateTime.now().toString());
         errorResponse.put("status", status);
-        errorResponse.put("error", errorCode.name()); // Using name as error description for now or generic
+        errorResponse.put("error", errorCode.name()); 
         errorResponse.put("errorCode", errorCode.getCode());
-        errorResponse.put("path", "/auth/login"); // Hardcoded as this filter is for login
+        errorResponse.put("path", "/auth/login"); 
         
         response.setContentType(CONTENT_TYPE);
         response.setStatus(status);

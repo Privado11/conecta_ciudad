@@ -137,11 +137,33 @@ public class GlobalExceptionHandler {
         List<ErrorResponse.ValidationError> validationErrors = new ArrayList<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
+            String constraintName = error.getCode(); // e.g., "NotBlank", "Email", "Size"
+            Object rejectedValue = ((FieldError) error).getRejectedValue();
+            
+            // Map constraint to specific error code
+            String errorCode = com.unimagdalena.conectaCiudad.enums.ValidationErrorCode
+                    .mapFromConstraint(constraintName, fieldName);
+            
+            // Build parameters for frontend to use in i18n
+            Map<String, Object> parameters = new HashMap<>();
+            parameters.put("field", fieldName);
+            parameters.put("rejectedValue", rejectedValue);
+            
+            // Add constraint-specific parameters (e.g., min, max values)
+            if (error.getArguments() != null && error.getArguments().length > 1) {
+                Object[] args = error.getArguments();
+                // Skip first argument (it's usually the field name)
+                for (int i = 1; i < args.length; i++) {
+                    if (args[i] instanceof Number) {
+                        parameters.put("constraint_" + i, args[i]);
+                    }
+                }
+            }
+            
             validationErrors.add(ErrorResponse.ValidationError.builder()
                     .field(fieldName)
-                    .errorCode("VALIDATION_ERROR")
-                    .parameters(Map.of("defaultMessage", errorMessage))
+                    .errorCode(errorCode)
+                    .parameters(parameters)
                     .build());
         });
 

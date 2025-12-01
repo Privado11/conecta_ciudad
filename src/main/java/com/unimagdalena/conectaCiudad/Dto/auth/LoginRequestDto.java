@@ -6,10 +6,10 @@ import lombok.Builder;
 
 @Builder
 public record LoginRequestDto(
-    @NotBlank(message = "Email is required")
-    @Email(message = "Invalid email format")
+    @NotBlank
+    @Email
     String email,
     
-    @NotBlank(message = "Password is required")
+    @NotBlank
     String password
 ) {}

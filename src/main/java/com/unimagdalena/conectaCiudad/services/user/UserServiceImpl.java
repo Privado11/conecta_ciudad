@@ -14,9 +14,12 @@ import com.unimagdalena.conectaCiudad.exceptions.DuplicateResourceException;
 import com.unimagdalena.conectaCiudad.exceptions.ResourceNotFoundException;
 import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.events.UserCreatedEvent;
+import com.unimagdalena.conectaCiudad.events.UserUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +38,7 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -89,34 +92,24 @@ public class UserServiceImpl implements UserService {
     public UserDto registerUser(UserSaveDto userDto) {
         log.info("Iniciando registro de nuevo usuario: {}", userDto.email());
 
-        try {
-            validateCitizenRoleOnly(userDto.roles());
+        validateCitizenRoleOnly(userDto.roles());
 
-            validateUniqueFields(userDto.email(), userDto.nationalId());
+        validateUniqueFields(userDto.email(), userDto.nationalId());
 
-            User user = buildUserFromDto(userDto);
-            user.setActive(true);
+        User user = buildUserFromDto(userDto);
+        user.setActive(true);
 
-            Role citizenRole = findRoleByNameOrThrow(DEFAULT_ROLE);
-            user.setRoles(List.of(citizenRole));
+        Role citizenRole = findRoleByNameOrThrow(DEFAULT_ROLE);
+        user.setRoles(List.of(citizenRole));
 
-            User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-            logUserCreation(savedUser, citizenRole.getName(), "Registro público");
+        log.info("Usuario {} registrado exitosamente con ID: {}",
+                savedUser.getEmail(), savedUser.getId());
 
-            log.info("Usuario {} registrado exitosamente con ID: {}",
-                    savedUser.getEmail(), savedUser.getId());
+        eventPublisher.publishEvent(new UserCreatedEvent(this, savedUser, null)); 
 
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_CREATED.name(),
-                    "Error registering user: " + userDto.email(),
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -124,29 +117,17 @@ public class UserServiceImpl implements UserService {
     public UserDto updateOwnProfile(Long userId, UserSaveDto updateDto) {
         log.info("Usuario {} actualizando su propio perfil", userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
+        User user = findUserByIdOrThrow(userId);
 
-            Map<String, String> oldValues = captureUserValues(user);
+        updateUserBasicFields(user, updateDto);
 
-            updateUserBasicFields(user, updateDto);
+        User savedUser = userRepository.save(user);
 
-            User savedUser = userRepository.save(user);
+        log.info("Usuario {} actualizó su perfil exitosamente", user.getEmail());
 
-            logProfileUpdate(userId, oldValues, savedUser);
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, savedUser));
 
-            log.info("Usuario {} actualizó su perfil exitosamente", user.getEmail());
-
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_UPDATED.name(),
-                    "Error updating user profile " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -154,37 +135,20 @@ public class UserServiceImpl implements UserService {
     public UserDto changePassword(Long userId, String oldPassword, String newPassword) {
         log.info("Usuario {} cambiando su contraseña", userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
+        User user = findUserByIdOrThrow(userId);
 
-            validateCurrentPassword(user, oldPassword);
+        validateCurrentPassword(user, oldPassword);
 
-            validateNewPassword(newPassword);
+        validateNewPassword(newPassword);
 
-            user.setPassword(passwordEncoder.encode(newPassword));
-            userRepository.save(user);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        User savedUser = userRepository.save(user);
 
-            auditHelper.logComplete(
-                    UserActionType.USER_PASSWORD_CHANGED.name(),
-                    "User changed their own password",
-                    EntityType.USER,
-                    userId,
-                    ActionResult.SUCCESS,
-                    Map.of("userId", userId, "userEmail", user.getEmail())
-            );
+        log.info("Usuario {} cambió su contraseña exitosamente", user.getEmail());
 
-            log.info("Usuario {} cambió su contraseña exitosamente", user.getEmail());
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, savedUser));
 
-            return userMapper.toDto(user);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_PASSWORD_CHANGED.name(),
-                    "Error changing password for user " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(user);
     }
 
 
@@ -313,56 +277,5 @@ public class UserServiceImpl implements UserService {
             user.setPhone(updateDto.phone().trim());
         }
 
-    }
-
-    private Map<String, String> captureUserValues(User user) {
-        Map<String, String> values = new HashMap<>();
-        values.put("name", user.getName());
-        values.put("phone", user.getPhone() != null ? user.getPhone() : "");
-        return values;
-    }
-
-    private void logUserCreation(User user, String roleName, String source) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", user.getName());
-        metadata.put("userEmail", user.getEmail());
-        metadata.put("role", roleName);
-        metadata.put("source", source);
-
-        auditHelper.logComplete(
-                UserActionType.USER_CREATED.name(),
-                "User '" + user.getName() + "' registered with role: " + roleName,
-                EntityType.USER,
-                user.getId(),
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logProfileUpdate(Long userId, Map<String, String> oldValues, User updatedUser) {
-        Map<String, Object> metadata = new HashMap<>();
-
-        if (!oldValues.get("name").equals(updatedUser.getName())) {
-            metadata.put("oldName", oldValues.get("name"));
-            metadata.put("newName", updatedUser.getName());
-        }
-
-        String oldPhone = oldValues.get("phone");
-        String newPhone = updatedUser.getPhone() != null ? updatedUser.getPhone() : "";
-        if (!oldPhone.equals(newPhone)) {
-            metadata.put("oldPhone", oldPhone.isEmpty() ? null : oldPhone);
-            metadata.put("newPhone", newPhone.isEmpty() ? null : newPhone);
-        }
-
-        if (!metadata.isEmpty()) {
-            auditHelper.logComplete(
-                    UserActionType.USER_PASSWORD_CHANGED.name(),
-                    "Password changed successfully",
-                    EntityType.USER,
-                    userId,
-                    ActionResult.SUCCESS,
-                    metadata
-            );
-        }
     }
 }

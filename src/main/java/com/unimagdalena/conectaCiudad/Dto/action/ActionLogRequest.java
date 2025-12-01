@@ -15,5 +15,7 @@ public record ActionLogRequest(
     ActionResult result,
     Map<String, Object> metadata,
     Long userId,
-    Long accessId
+    Long accessId,
+    String ipAddress,
+    String userAgent
 ) {}

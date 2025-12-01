@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.Immutable;
+import org.hibernate.envers.Audited;
 
 import com.unimagdalena.conectaCiudad.enums.VoteType;
 
@@ -11,6 +12,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
+@Audited
 @Table(name = "votes", 
     uniqueConstraints = {
         @UniqueConstraint(name = "uk_vote_user_project", columnNames = {"user_id", "project_id"})

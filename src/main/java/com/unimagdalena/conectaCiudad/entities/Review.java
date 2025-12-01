@@ -2,11 +2,14 @@ package com.unimagdalena.conectaCiudad.entities;
 
 import java.time.OffsetDateTime;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.envers.Audited;
+
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "reviews")
+@Audited
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter

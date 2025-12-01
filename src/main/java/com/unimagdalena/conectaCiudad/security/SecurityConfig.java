@@ -21,12 +21,11 @@ import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthenticationFilter;
 import com.unimagdalena.conectaCiudad.security.filters.JwtAuthorizationFilter;
 import com.unimagdalena.conectaCiudad.services.access.AccessService;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import org.springframework.context.ApplicationEventPublisher;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.unimagdalena.conectaCiudad.Dto.access.AccessMapper;
 
 import lombok.RequiredArgsConstructor;
 import java.util.Map;
@@ -39,8 +38,7 @@ public class SecurityConfig {
     private final AuthenticationConfiguration authenticationConfiguration;
     private final UserRepository userRepository;
     private final AccessService accessService;
-    private final AccessMapper accessMapper;
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Bean
     public AuthenticationManager authenticationManager() throws Exception {
@@ -56,7 +54,7 @@ public class SecurityConfig {
 SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
     JwtAuthenticationFilter jwtAuthFilter = 
-        new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService, accessMapper, auditHelper);
+        new JwtAuthenticationFilter(authenticationManager(), userRepository, accessService, eventPublisher);
     jwtAuthFilter.setFilterProcessesUrl("/auth/login");
     
     

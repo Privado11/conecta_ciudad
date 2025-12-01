@@ -1,5 +1,7 @@
 package com.unimagdalena.conectaCiudad.entities;
 
+import org.hibernate.envers.Audited;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,6 +10,7 @@ import lombok.*;
     name = "permissions",
     indexes = @Index(name = "idx_permission_code", columnList = "code", unique = true)
 )
+@Audited
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter

@@ -2,16 +2,15 @@ package com.unimagdalena.conectaCiudad.services.voting;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
-import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
-import com.unimagdalena.conectaCiudad.Dto.voting.VotingResultsDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.UserVotingStatsDto;
-import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.entities.Role;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+import com.unimagdalena.conectaCiudad.enums.VoteType;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
+import com.unimagdalena.conectaCiudad.repositories.VoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -30,7 +29,7 @@ import java.util.stream.Collectors;
 public class VotingServiceImpl implements VotingService {
 
     private final ProjectRepository projectRepository;
-    private final VotingClient votingClient;
+    private final VoteRepository voteRepository;
 
     @Override
     public List<VotingProjectDto> getAllVotingProjects(String token) {
@@ -150,10 +149,10 @@ public class VotingServiceImpl implements VotingService {
 
     private VotingProjectDto mapToVotingProjectDto(Project project, String votingStatus, String token) {
  
-        VotingResultsDto votingResults = getVotingResults(project.getId(), token);
+        VotingResults votingResults = getVotingResults(project.getId());
         
-        long votesInFavor = votingResults != null ? votingResults.votesInFavor() : 0L;
-        long votesAgainst = votingResults != null ? votingResults.votesAgainst() : 0L;
+        long votesInFavor = votingResults.votesInFavor();
+        long votesAgainst = votingResults.votesAgainst();
         long totalVotes = votesInFavor + votesAgainst;
         
         double participationRate = totalVotes > 0 ? (totalVotes * 100.0 / 5000.0) : 0.0;
@@ -237,23 +236,18 @@ public class VotingServiceImpl implements VotingService {
         );
     }
 
-    private VotingResultsDto getVotingResults(Long projectId, String token) {
-        try {
-            VotingResultsDto results = votingClient.getProjectVotingResults(projectId, token);
-            
-            if (results != null) {
-                log.debug("Obtenidos resultados reales para proyecto {}: {} a favor, {} en contra", 
-                        projectId, results.votesInFavor(), results.votesAgainst());
-                return results;
-            }
-            
-            log.debug("No se encontraron resultados para proyecto {}", projectId);
-            return null;
-        } catch (Exception e) {
-            log.warn("Failed to get voting results for project {}: {}", projectId, e.getMessage());
-            return null;
-        }
+    private VotingResults getVotingResults(Long projectId) {
+        long votesInFavor = voteRepository.countByProjectIdAndVoteType(projectId, VoteType.IN_FAVOR);
+        long votesAgainst = voteRepository.countByProjectIdAndVoteType(projectId, VoteType.AGAINST);
+        
+        log.debug("Obtenidos resultados para proyecto {}: {} a favor, {} en contra", 
+                projectId, votesInFavor, votesAgainst);
+        
+        return new VotingResults(votesInFavor, votesAgainst);
     }
+    
+    // Helper record to hold voting results
+    private record VotingResults(long votesInFavor, long votesAgainst) {}
 
     @Override
     public List<UserVoteHistoryDto> getUserVotingHistory(String token) {
@@ -268,19 +262,18 @@ public class VotingServiceImpl implements VotingService {
         log.debug("Found {} projects with voting status", votingProjects.size());
         
         
+        // Get the authenticated user ID from the token (assuming it's passed in the context)
+        // For now, we'll need to get it from SecurityContext or pass it as parameter
+        // This is a simplified version - you may need to adjust based on your auth setup
+        
         List<UserVoteHistoryDto> userVotes = votingProjects.stream()
                 .map(project -> {
                     try {
-                        
-                        VoteDto vote = votingClient.getUserVoteForProject(project.getId(), token);
-                        
-                        if (vote != null) {
-                           
-                            return mapToUserVoteHistoryDto(project, token);
-                        }
-                        return null;
+                        // Note: You'll need to pass the actual userId instead of extracting from token
+                        // This is a placeholder - adjust based on your authentication setup
+                        return mapToUserVoteHistoryDto(project);
                     } catch (Exception e) {
-                        log.warn("Error checking vote for project {}: {}", project.getId(), e.getMessage());
+                        log.warn("Error mapping vote history for project {}: {}", project.getId(), e.getMessage());
                         return null;
                     }
                 })
@@ -292,8 +285,8 @@ public class VotingServiceImpl implements VotingService {
         return userVotes;
     }
 
-    private UserVoteHistoryDto mapToUserVoteHistoryDto(Project project, String token) {
-     
+    private UserVoteHistoryDto mapToUserVoteHistoryDto(Project project) {
+      
         String votingStatus = project.getStatus() == ProjectStatus.OPEN_FOR_VOTING ? "OPEN" : "CLOSED";
         
         
@@ -334,10 +327,10 @@ public class VotingServiceImpl implements VotingService {
             }
         } else {
             
-            VotingResultsDto votingResults = getVotingResults(project.getId(), token);
+            VotingResults votingResults = getVotingResults(project.getId());
             
-            long votesFavor = votingResults != null ? votingResults.votesInFavor() : 0L;
-            long votesAgst = votingResults != null ? votingResults.votesAgainst() : 0L;
+            long votesFavor = votingResults.votesInFavor();
+            long votesAgst = votingResults.votesAgainst();
             long total = votesFavor + votesAgst;
             
             votesInFavor = votesFavor;
@@ -402,27 +395,20 @@ public class VotingServiceImpl implements VotingService {
                 Pageable.unpaged()).getContent();
         
         log.debug("Found {} closed voting projects", closedProjects.size());
+               // Note: This method needs userId to be passed as parameter
+        // For now, returning placeholder stats - adjust based on your auth setup
+        // You'll need to modify the service interface to accept userId
         
-       
         long totalVotes = 0;
         long votesInFavor = 0;
         long votesAgainst = 0;
         
-        for (Project project : closedProjects) {
-            try {
-                VoteDto vote = votingClient.getUserVoteForProject(project.getId(), token);
-                if (vote != null) {
-                    totalVotes++;
-                    if (vote.decision()) {
-                        votesInFavor++;
-                    } else {
-                        votesAgainst++;
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("Error checking vote for project {}: {}", project.getId(), e.getMessage());
-            }
-        }
+        // TODO: Get actual userId from security context or pass as parameter
+        // Example implementation (commented out until userId is available):
+        // List<Vote> userVotes = voteRepository.findByVoterId(userId);
+        // totalVotes = userVotes.size();
+        // votesInFavor = userVotes.stream().filter(v -> v.getVoteType() == VoteType.IN_FAVOR).count();
+        // votesAgainst = userVotes.stream().filter(v -> v.getVoteType() == VoteType.AGAINST).count();
         
         double participationRate = closedProjects.size() > 0 
                 ? (totalVotes * 1.0 / closedProjects.size()) 

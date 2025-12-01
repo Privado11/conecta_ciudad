@@ -1,23 +1,24 @@
 package com.unimagdalena.conectaCiudad.Dto.project;
 
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
-import com.unimagdalena.conectaCiudad.Dto.voting.VoteDto;
-import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Project;
+import com.unimagdalena.conectaCiudad.entities.Vote;
+import com.unimagdalena.conectaCiudad.enums.VoteType;
+import com.unimagdalena.conectaCiudad.repositories.VoteRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
 public class ProjectVotingMapper {
 
     private final UserMapper userMapper;
-    private final VotingClient votingClient;
+    private final VoteRepository voteRepository;
 
     public ProjectVotingDto toDto(Project project, Long citizenId, String token) {
         return new ProjectVotingDto(
@@ -125,23 +126,24 @@ public class ProjectVotingMapper {
             );
         }
 
-        List<VoteDto> votes =  votingClient.getUserVotes(projectId, citizenId, token);
+        Optional<Vote> voteOpt = voteRepository.findByProjectIdAndVoterId(projectId, citizenId);
 
-        if (votes.isEmpty()) {
+        if (voteOpt.isEmpty()) {
             return new ProjectVotingDto.UserVotingStatus(
                     false, null, null, "Aún no has votado en este proyecto"
             );
         }
 
-        VoteDto vote = votes.get(0);
-        String message = vote.decision() ?
+        Vote vote = voteOpt.get();
+        boolean decision = vote.getVoteType() == VoteType.IN_FAVOR;
+        String message = decision ?
                 "Ya votaste A FAVOR de este proyecto" :
                 "Ya votaste EN CONTRA de este proyecto";
 
         return new ProjectVotingDto.UserVotingStatus(
                 true,
-                vote.decision(),
-                vote.fechaHora(),
+                decision,
+                vote.getVotedAt().toLocalDateTime(),
                 message
         );
     }

@@ -4,17 +4,23 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
+
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "users")
+@Audited
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Builder
 public class User {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,6 +34,7 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @NotAudited
     @Column(nullable = false, length = 60)
     private String password;
 
@@ -36,10 +43,14 @@ public class User {
 
     @Column(length = 20, nullable = false)
     private String phone;
-    
+
     @CreationTimestamp
-    @Column(name = "created_at")
+    @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -51,28 +62,13 @@ public class User {
     private List<Role> roles;
 
     @OneToMany(
-        mappedBy = "user",
-        cascade = CascadeType.ALL,
-        orphanRemoval = true
-    )
-    private List<Access> accesses;
-
-
-    @OneToMany(
-        mappedBy = "user",
-        cascade = CascadeType.ALL,
-        orphanRemoval = true
-    )
-    private List<Action> actions;
-
-    @OneToMany(
         mappedBy = "curator",
         cascade = CascadeType.ALL,
         orphanRemoval = true
     )
     private List<Review> reviews;
 
-    @OneToMany(mappedBy = "creator")
+    @OneToMany(mappedBy = "creator", cascade = CascadeType.ALL)
     private List<Project> projects;
 
     @OneToMany(mappedBy = "voter", cascade = CascadeType.ALL, orphanRemoval = true)

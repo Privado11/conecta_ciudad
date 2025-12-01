@@ -20,7 +20,11 @@ import com.unimagdalena.conectaCiudad.repositories.ReviewRepository;
 import com.unimagdalena.conectaCiudad.repositories.RoleRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
 import com.unimagdalena.conectaCiudad.services.action.ActionService;
-import com.unimagdalena.conectaCiudad.services.action.AuditHelper;
+import com.unimagdalena.conectaCiudad.events.UserCreatedEvent;
+import com.unimagdalena.conectaCiudad.events.UserUpdatedEvent;
+import com.unimagdalena.conectaCiudad.events.UserDeletedEvent;
+import com.unimagdalena.conectaCiudad.events.ReviewAssignedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.unimagdalena.conectaCiudad.specifications.ProjectSpecifications;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,7 +73,7 @@ public class AdminServiceImpl implements AdminService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
-    private final AuditHelper auditHelper;
+    private final ApplicationEventPublisher eventPublisher;
     private final RoleRepository roleRepository;
     private final ProjectRepository projectRepository;
     private final PasswordEncoder passwordEncoder;
@@ -83,33 +87,24 @@ public class AdminServiceImpl implements AdminService {
     public UserDto createUser(UserSaveDto userDto) {
         log.info("Admin creando usuario: {}", userDto.email());
 
-        try {
-            validateRolesProvided(userDto.roles());
-            validateUniqueFields(userDto.email(), userDto.nationalId());
+        validateRolesProvided(userDto.roles());
+        validateUniqueFields(userDto.email(), userDto.nationalId());
 
-            User user = buildUserFromDto(userDto);
-            List<Role> roles = fetchAndValidateRoles(userDto.roles());
+        User user = buildUserFromDto(userDto);
+        List<Role> roles = fetchAndValidateRoles(userDto.roles());
 
-            user.setActive(true);
-            user.setRoles(roles);
+        user.setActive(true);
+        user.setRoles(roles);
 
-            User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-            logUserCreation(savedUser, roles);
+        log.info("Usuario {} creado exitosamente con ID: {}",
+                savedUser.getEmail(), savedUser.getId());
 
-            log.info("Usuario {} creado exitosamente con ID: {}",
-                    savedUser.getEmail(), savedUser.getId());
+        User creator = getCurrentUser();
+        eventPublisher.publishEvent(new UserCreatedEvent(this, savedUser, creator));
 
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_CREATED.name(),
-                    "Error registering user: " + userDto.email(),
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -117,29 +112,18 @@ public class AdminServiceImpl implements AdminService {
     public UserDto updateUser(Long userId, UserSaveDto updateDto) {
         log.info("Admin actualizando usuario ID: {}", userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
+        User user = findUserByIdOrThrow(userId);
 
-            Map<String, Object> oldValues = captureUserState(user);
+        updateUserFields(user, updateDto);
 
-            updateUserFields(user, updateDto);
+        User savedUser = userRepository.save(user);
 
-            User savedUser = userRepository.save(user);
+        log.info("Usuario {} actualizado exitosamente", savedUser.getEmail());
 
-            logUserUpdate(userId, oldValues, savedUser);
+        User updater = getCurrentUser();
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, updater));
 
-            log.info("Usuario {} actualizado exitosamente", savedUser.getEmail());
-
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_UPDATED.name(),
-                    "Error updating user " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -147,29 +131,21 @@ public class AdminServiceImpl implements AdminService {
     public void deleteUser(Long userId) {
         log.info("Admin eliminando usuario ID: {}", userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
+        User user = findUserByIdOrThrow(userId);
 
-            validateNoActiveProjects(userId);
+        validateNoActiveProjects(userId);
 
-            int reassignedProjects = reassignInactiveProjects(userId);
+        int reassignedProjects = reassignInactiveProjects(userId);
 
-            String userName = user.getName();
-            String userEmail = user.getEmail();
-            userRepository.delete(user);
-            logUserDeletion(userId, userName, userEmail, reassignedProjects);
+        String userName = user.getName();
+        String userEmail = user.getEmail();
+        userRepository.delete(user);
 
-            log.info("Usuario {} ({}) eliminado exitosamente. Proyectos reasignados: {}",
-                    userName, userEmail, reassignedProjects);
+        log.info("Usuario {} ({}) eliminado exitosamente. Proyectos reasignados: {}",
+                userName, userEmail, reassignedProjects);
 
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_DELETED.name(),
-                    "Error deleting user " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        User deleter = getCurrentUser();
+        eventPublisher.publishEvent(new UserDeletedEvent(this, userId, userName, userEmail, deleter));
     }
 
 
@@ -178,30 +154,21 @@ public class AdminServiceImpl implements AdminService {
     public UserDto toggleUserStatus(Long userId) {
         log.info("Admin cambiando estado del usuario ID: {}", userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
+        User user = findUserByIdOrThrow(userId);
 
-            boolean oldStatus = user.getActive();
-            boolean newStatus = !oldStatus;
+        boolean oldStatus = user.getActive();
+        boolean newStatus = !oldStatus;
 
-            user.setActive(newStatus);
-            User savedUser = userRepository.save(user);
+        user.setActive(newStatus);
+        User savedUser = userRepository.save(user);
 
-            logStatusChange(userId, user.getName(), user.getEmail(), oldStatus, newStatus);
+        log.info("Estado de usuario {} cambiado a: {}",
+                user.getEmail(), newStatus ? "ACTIVO" : "INACTIVO");
 
-            log.info("Estado de usuario {} cambiado a: {}",
-                    user.getEmail(), newStatus ? "ACTIVO" : "INACTIVO");
+        User updater = getCurrentUser();
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, updater));
 
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_ACTIVATED.name(),
-                    "Error changing status for user " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
 
@@ -210,33 +177,24 @@ public class AdminServiceImpl implements AdminService {
     public UserDto assignRole(Long userId, String roleName) {
         log.info("Admin asignando rol '{}' al usuario ID: {}", roleName, userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
-            String normalizedRole = normalizeAndValidateRole(roleName);
-            Role role = findRoleByNameOrThrow(normalizedRole);
+        User user = findUserByIdOrThrow(userId);
+        String normalizedRole = normalizeAndValidateRole(roleName);
+        Role role = findRoleByNameOrThrow(normalizedRole);
 
-            String oldRole = getCurrentRoleName(user);
+        String oldRole = getCurrentRoleName(user);
 
-            user.getRoles().clear();
-            user.getRoles().add(role);
+        user.getRoles().clear();
+        user.getRoles().add(role);
 
-            User savedUser = userRepository.save(user);
+        User savedUser = userRepository.save(user);
 
-            logRoleChange(userId, user.getName(), user.getEmail(), oldRole, role.getName());
+        log.info("Rol del usuario {} cambiado de '{}' a '{}'",
+                user.getEmail(), oldRole, role.getName());
 
-            log.info("Rol del usuario {} cambiado de '{}' a '{}'",
-                    user.getEmail(), oldRole, role.getName());
+        User updater = getCurrentUser();
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, updater));
 
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_ROLE_ADDED.name(),
-                    "Error changing role for user " + userId,
-                    e.getMessage()
-            );
-            throw e;
-        }
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -244,38 +202,29 @@ public class AdminServiceImpl implements AdminService {
     public UserDto removeRole(Long userId, String roleName) {
         log.info("Admin removiendo rol '{}' del usuario ID: {}", roleName, userId);
 
-        try {
-            User user = findUserByIdOrThrow(userId);
-            String normalizedRole = normalizeAndValidateRole(roleName);
+        User user = findUserByIdOrThrow(userId);
+        String normalizedRole = normalizeAndValidateRole(roleName);
 
-            List<Role> roles = new ArrayList<>(user.getRoles());
-            roles.removeIf(r -> r.getName().equalsIgnoreCase(normalizedRole));
+        List<Role> roles = new ArrayList<>(user.getRoles());
+        roles.removeIf(r -> r.getName().equalsIgnoreCase(normalizedRole));
 
-            boolean assignedDefault = false;
-            if (roles.isEmpty()) {
-                Role defaultRole = findRoleByNameOrThrow(DEFAULT_ROLE);
-                roles.add(defaultRole);
-                assignedDefault = true;
-            }
-
-            user.setRoles(roles);
-            User savedUser = userRepository.save(user);
-
-            logRoleRemoval(userId, user.getName(), user.getEmail(), normalizedRole, assignedDefault);
-
-            log.info("Rol '{}' removido del usuario {}. Rol por defecto asignado: {}",
-                    normalizedRole, user.getEmail(), assignedDefault);
-
-            return userMapper.toDto(savedUser);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    UserActionType.USER_ROLE_REMOVED.name(),
-                    "Error removing role for user " + userId,
-                    e.getMessage()
-            );
-            throw e;
+        boolean assignedDefault = false;
+        if (roles.isEmpty()) {
+            Role defaultRole = findRoleByNameOrThrow(DEFAULT_ROLE);
+            roles.add(defaultRole);
+            assignedDefault = true;
         }
+
+        user.setRoles(roles);
+        User savedUser = userRepository.save(user);
+
+        log.info("Rol '{}' removido del usuario {}. Rol por defecto asignado: {}",
+                normalizedRole, user.getEmail(), assignedDefault);
+
+        User updater = getCurrentUser();
+        eventPublisher.publishEvent(new UserUpdatedEvent(this, savedUser, updater));
+
+        return userMapper.toDto(savedUser);
     }
 
     @Override
@@ -400,19 +349,21 @@ public class AdminServiceImpl implements AdminService {
                     savedUsers
             );
 
-            logBulkImport(result);
-
             log.info("Importación masiva completada: {} exitosos, {} fallidos de {} totales",
                     result.successCount(), result.failCount(), result.totalRecords());
 
             return result;
 
         } catch (Exception e) {
-            auditHelper.logFailure(
+            eventPublisher.publishEvent(new com.unimagdalena.conectaCiudad.events.ActionFailedEvent(
+                    this,
                     UserActionType.USER_BULK_IMPORT.name(),
                     "Error en importación masiva",
-                    e.getMessage()
-            );
+                    e,
+                    EntityType.USER,
+                    null,
+                    getCurrentUser()
+            ));
             throw e;
         }
     }
@@ -484,11 +435,15 @@ public class AdminServiceImpl implements AdminService {
             return saveBulkUsers(users);
 
         } catch (Exception e) {
-            auditHelper.logFailure(
+            eventPublisher.publishEvent(new com.unimagdalena.conectaCiudad.events.ActionFailedEvent(
+                    this,
                     UserActionType.USER_BULK_IMPORT.name(),
                     "Error importing users from CSV",
-                    e.getMessage()
-            );
+                    e,
+                    EntityType.USER,
+                    null,
+                    getCurrentUser()
+            ));
             throw e;
         }
     }
@@ -512,16 +467,18 @@ public class AdminServiceImpl implements AdminService {
                 writer.flush();
             }
 
-            logExport(users.size());
-
             return outputStream.toByteArray();
 
         } catch (Exception e) {
-            auditHelper.logFailure(
+            eventPublisher.publishEvent(new com.unimagdalena.conectaCiudad.events.ActionFailedEvent(
+                    this,
                     UserActionType.USER_EXPORT.name(),
                     "Error al exportar usuarios a CSV",
-                    e.getMessage()
-            );
+                    e,
+                    EntityType.USER,
+                    null,
+                    getCurrentUser()
+            ));
             throw e;
         }
     }
@@ -584,57 +541,38 @@ public class AdminServiceImpl implements AdminService {
 
     @Override
     public ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId, Long accessId) {
-        try {
-            Project project = findProjectById(projectId);
-            User newCurator = findUserById(curatorId);
+        Project project = findProjectById(projectId);
+        User newCurator = findUserById(curatorId);
 
-            if (!project.getStatus().canBeReviewed()) {
-                throw new BadRequestException(
-                        ErrorCode.PROJECT_NOT_REVIEWABLE,
-                        Map.of("currentStatus", project.getStatus().name())
-                );
-            }
-
-            List<Review> reviews = reviewRepository.findByProjectId(projectId);
-            Review review = getOrCreateReview(reviews, project, newCurator);
-
-            User oldCurator = review.getCurator();
-            review.setCurator(newCurator);
-            reviewRepository.save(review);
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("projectName", project.getName());
-            metadata.put("projectId", projectId);
-            metadata.put("oldCuratorId", oldCurator != null ? oldCurator.getId() : null);
-            metadata.put("oldCuratorName", oldCurator != null ? oldCurator.getName() : null);
-            metadata.put("newCuratorId", newCurator.getId());
-            metadata.put("newCuratorName", newCurator.getName());
-
-            auditHelper.logComplete(
-                    ProjectActionType.CURATOR_REASSIGNED.name(),
-                    String.format("Curator reassigned in project '%s': %s → %s",
-                            project.getName(),
-                            oldCurator != null ? oldCurator.getName() : "none",
-                            newCurator.getName()),
-                    EntityType.REVIEW,
-                    review.getId(),
-                    ActionResult.SUCCESS,
-                    metadata
+        if (!project.getStatus().canBeReviewed()) {
+            throw new BadRequestException(
+                    ErrorCode.PROJECT_NOT_REVIEWABLE,
+                    Map.of("currentStatus", project.getStatus().name())
             );
-
-            return projectMapper.toDto(project);
-
-        } catch (Exception e) {
-            auditHelper.logFailure(
-                    ProjectActionType.CURATOR_REASSIGNED.name(),
-                    "Error changing project status " + projectId,
-                    e.getMessage()
-            );
-            throw e;
         }
+
+        List<Review> reviews = reviewRepository.findByProjectId(projectId);
+        Review review = getOrCreateReview(reviews, project, newCurator);
+
+        review.setCurator(newCurator);
+        Review savedReview = reviewRepository.save(review);
+
+        User admin = findUserById(adminId);
+        eventPublisher.publishEvent(new ReviewAssignedEvent(this, savedReview, admin));
+
+        return projectMapper.toDto(project);
     }
 
 
+
+    private User getCurrentUser() {
+        org.springframework.security.core.Authentication authentication = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        String nationalId = authentication.getName();
+        return userRepository.findByNationalId(nationalId);
+    }
 
     private User findUserByIdOrThrow(Long userId) {
         return userRepository.findById(userId)
@@ -1315,16 +1253,7 @@ public class AdminServiceImpl implements AdminService {
         );
     }
 
-    private Map<String, Object> captureUserState(User user) {
-        Map<String, Object> state = new HashMap<>();
-        state.put("name", user.getName());
-        state.put("email", user.getEmail());
-        state.put("nationalId", user.getNationalId());
-        state.put("phone", user.getPhone());
-        state.put("active", user.getActive());
-        state.put("role", getCurrentRoleName(user));
-        return state;
-    }
+
 
     private String getCurrentRoleName(User user) {
         return user.getRoles().isEmpty()
@@ -1332,178 +1261,9 @@ public class AdminServiceImpl implements AdminService {
                 : user.getRoles().get(0).getName();
     }
 
-    private void logUserCreation(User user, List<Role> roles) {
-        String roleNames = roles.stream()
-                .map(Role::getName)
-                .collect(Collectors.joining(", "));
 
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", user.getName());
-        metadata.put("userEmail", user.getEmail());
-        metadata.put("roles", roleNames);
 
-        auditHelper.logComplete(
-                UserActionType.USER_CREATED.name(),
-                String.format("User '%s' registered by admin", user.getName()),
-                EntityType.USER,
-                user.getId(),
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
 
-    private void logUserUpdate(Long userId, Map<String, Object> oldValues, User newUser) {
-        Map<String, Object> metadata = new HashMap<>();
-
-        if (!oldValues.get("name").equals(newUser.getName())) {
-            metadata.put("oldName", oldValues.get("name"));
-            metadata.put("newName", newUser.getName());
-        }
-
-        if (!oldValues.get("email").equals(newUser.getEmail())) {
-            metadata.put("oldEmail", oldValues.get("email"));
-            metadata.put("newEmail", newUser.getEmail());
-        }
-
-        if (!Objects.equals(oldValues.get("nationalId"), newUser.getNationalId())) {
-            metadata.put("oldNationalId", oldValues.get("nationalId"));
-            metadata.put("newNationalId", newUser.getNationalId());
-        }
-
-        if (!Objects.equals(oldValues.get("phone"), newUser.getPhone())) {
-            metadata.put("oldPhone", oldValues.get("phone"));
-            metadata.put("newPhone", newUser.getPhone());
-        }
-
-        if (!Objects.equals(oldValues.get("active"), newUser.getActive())) {
-            metadata.put("oldStatus", oldValues.get("active"));
-            metadata.put("newStatus", newUser.getActive());
-        }
-
-        String newRole = getCurrentRoleName(newUser);
-        if (!oldValues.get("role").equals(newRole)) {
-            metadata.put("oldRole", oldValues.get("role"));
-            metadata.put("newRole", newRole);
-        }
-
-        auditHelper.logComplete(
-                UserActionType.USER_UPDATED.name(),
-                metadata.isEmpty()
-                        ? "User '" + newUser.getName() + "' updated by admin with no effective changes"
-                        : "User '" + newUser.getName() + "' updated by admin",
-                EntityType.USER,
-                userId,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logUserDeletion(Long userId, String userName, String userEmail, int projectsReassigned) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", userName);
-        metadata.put("userEmail", userEmail);
-        metadata.put("inactiveProjectsReassigned", projectsReassigned);
-
-        auditHelper.logComplete(
-                UserActionType.USER_DELETED.name(),
-                "User '" + userName + "' (" + userEmail + ") deleted by admin",
-                EntityType.USER,
-                userId,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logStatusChange(Long userId, String userName, String userEmail,
-                                 boolean oldStatus, boolean newStatus) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", userName);
-        metadata.put("userEmail", userEmail);
-        metadata.put("oldStatus", oldStatus);
-        metadata.put("newStatus", newStatus);
-
-        auditHelper.logComplete(
-                newStatus ? UserActionType.USER_ACTIVATED.name() : UserActionType.USER_DEACTIVATED.name(),
-                "User '" + userEmail + "' " + (newStatus ? "activated" : "deactivated"),
-                EntityType.USER,
-                userId,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logRoleChange(Long userId, String userName, String userEmail,
-                               String oldRole, String newRole) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", userName);
-        metadata.put("userEmail", userEmail);
-        metadata.put("oldRole", oldRole);
-        metadata.put("newRole", newRole);
-
-        auditHelper.logComplete(
-                UserActionType.USER_ROLE_CHANGED.name(),
-                String.format("User '%s' role changed from '%s' to '%s'",
-                        userName, oldRole, newRole),
-                EntityType.USER,
-                userId,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logRoleRemoval(Long userId, String userName, String userEmail,
-                                String removedRole, boolean assignedDefault) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("userName", userName);
-        metadata.put("userEmail", userEmail);
-        metadata.put("removedRole", removedRole);
-        metadata.put("assignedDefaultRole", assignedDefault);
-
-        auditHelper.logComplete(
-                UserActionType.USER_ROLE_REMOVED.name(),
-                "Role '" + removedRole + "' removed from user '" + userName + "'" +
-                        (assignedDefault ? " (default role assigned)" : ""),
-                EntityType.USER,
-                userId,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logBulkImport(BulkUserImportResult result) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("totalRecords", result.totalRecords());
-        metadata.put("successCount", result.successCount());
-        metadata.put("failCount", result.failCount());
-        metadata.put("errorSample", result.errors().stream()
-                .limit(5)
-                .map(UserImportError::errorMessage)
-                .collect(Collectors.toList()));
-
-        auditHelper.logComplete(
-                UserActionType.USER_BULK_IMPORT.name(),
-                String.format("Imported %d users from CSV. Success: %d, Failed: %d",
-                        result.totalRecords(), result.successCount(), result.failCount()),
-                EntityType.USER,
-                null,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
-
-    private void logExport(int userCount) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("usersExported", userCount);
-
-        auditHelper.logComplete(
-                UserActionType.USER_EXPORT.name(),
-                String.format("Exportación de %d usuarios a CSV", userCount),
-                EntityType.USER,
-                null,
-                ActionResult.SUCCESS,
-                metadata
-        );
-    }
 
     private User findUserById(Long userId) {
         return userRepository.findById(userId)

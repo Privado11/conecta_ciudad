@@ -100,11 +100,6 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             log.error("Error validating token: {}", e.getMessage());
             SecurityContextHolder.clearContext();
-            // Optionally we could return an error here, but standard behavior for invalid token in filter 
-            // is often to just clear context and let the entry point handle it if auth is required.
-            // However, if we want to be explicit about "Invalid Token":
-            // writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, ErrorCode.INVALID_CREDENTIALS, request.getRequestURI());
-            // return;
         }
 
         chain.doFilter(request, response);

@@ -11,30 +11,30 @@ import jakarta.validation.constraints.Size;
 
 public record ProjectSaveDto(
 
-    @NotBlank(message = "Project name is required")
-    @Size(max = 50, message = "Project name must not exceed 50 characters")
+    @NotBlank
+    @Size(max = 50)
     String name,
 
-    @NotBlank(message = "Description is required")
+    @NotBlank
     String description,
 
-    @NotBlank(message = "Objectives are required")
-    @Size(max = 150, message = "Objectives must not exceed 150 characters")
+    @NotBlank
+    @Size(max = 150)
     String objectives,
 
-    @NotBlank(message = "Beneficiary populations are required")
-    @Size(max = 250, message = "Beneficiary populations must not exceed 250 characters")
+    @NotBlank
+    @Size(max = 250)
     String beneficiaryPopulations,
 
-    @NotNull(message = "Budget is required")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Budget must be greater than zero")
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = false)
     BigDecimal budget,
 
-    @NotNull(message = "Start date is required")
+    @NotNull
     LocalDate startAt,
 
-    @NotNull(message = "End date is required")
-    @Future(message = "End date must be in the future")
+    @NotNull
+    @Future
     LocalDate endAt
 
 ) {}

@@ -5,9 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
 public record RoleSaveDto(
-    @NotBlank(message = "El nombre del rol es obligatorio")
+    @NotBlank
     String name,
 
-    @NotEmpty(message = "Debe asignar al menos un permiso al rol")
+    @NotEmpty
     List<String> permissions 
 ) {}

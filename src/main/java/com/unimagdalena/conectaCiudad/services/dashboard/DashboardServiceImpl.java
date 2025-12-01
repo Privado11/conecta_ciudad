@@ -1,14 +1,15 @@
 package com.unimagdalena.conectaCiudad.services.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.dashboard.*;
-import com.unimagdalena.conectaCiudad.clients.VotingClient;
 import com.unimagdalena.conectaCiudad.entities.Action;
 import com.unimagdalena.conectaCiudad.entities.Project;
 import com.unimagdalena.conectaCiudad.enums.ActionResult;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
+import com.unimagdalena.conectaCiudad.enums.VoteType;
 import com.unimagdalena.conectaCiudad.repositories.ActionRepository;
 import com.unimagdalena.conectaCiudad.repositories.ProjectRepository;
 import com.unimagdalena.conectaCiudad.repositories.UserRepository;
+import com.unimagdalena.conectaCiudad.repositories.VoteRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -29,7 +30,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
     private final ActionRepository actionRepository;
-    private final VotingClient votingClient;
+    private final VoteRepository voteRepository;
 
     private static final Map<String, String> STATUS_COLORS = Map.of(
         "DRAFT", "#94a3b8",
@@ -163,9 +164,9 @@ public class DashboardServiceImpl implements DashboardService {
 
         return activeVotations.stream()
                 .map(project -> {
-                    long realVotes = votingClient.getProjectVotesCount(project.getId(), token);
+                    long realVotes = voteRepository.countByProjectId(project.getId());
 
-                    log.debug("Proyecto '{}' (ID: {}) tiene {} votos reales",
+                    log.debug("Proyecto '{}' (ID: {}) tiene {} votos",
                             project.getName(), project.getId(), realVotes);
 
                     return new VotingActivityDataDto(

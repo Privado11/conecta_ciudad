@@ -1,0 +1,90 @@
+* [33mb6188a1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev[m[33m, [m[1;31morigin/dev[m[33m, [m[1;31morigin/deploy[m[33m, [m[1;32mdeploy[m[33m)[m Se mejora el manejo de errores
+* [33m3e3f2aa[m Se habilita cors
+* [33m668f91d[m Mejoras en la validación de timepos
+* [33md92d5ad[m Mejoras
+* [33meff7738[m Se mejora la obtencion de resultados
+* [33m213dbaf[m Se agregan endpoint a leader
+* [33m48dc94f[m Actualización del menu de lider
+* [33md804b1c[m Estadísticas y resultados de votaciones para administrador agregadas
+* [33m5c32930[m Comunicación con el grupo de votaciones
+* [33mfc0c6dc[m Audirotia de votos
+* [33m36a5bf5[m Permiso corregido
+* [33m1535b39[m Mejoras
+* [33m42eec18[m Mejoras en las estadísticas
+* [33mdb56de1[m Se añaden los endpoint para ver proyectos en votación y próximos
+* [33m7b3f04f[m Se corrige menú de ciudadano
+* [33m67dc64a[m Se agregan endpoint de dashboard
+* [33m489e8b4[m Modficación del menú
+* [33mb0630d0[m Se mejoran los endpoint de curadores
+* [33mee1ef14[m Solución de errores
+* [33ma60544a[m MEjora en la estructura
+* [33m2e8ec4d[m Nuevo endpoint para listar curadores
+* [33med27b8a[m Mejoras en la gestion de proyectos
+* [33m4d0234a[m Correcíon de pequeño error
+* [33m6f36a9c[m Se mejora la importación del csv
+* [33m15f3025[m Mejoras en los horarios
+* [33m3458820[m Se mejoran completamente los permisos
+* [33ma7ca6c1[m Se mejora la obtención de l aip
+* [33mb49f94a[m Se mejora el obtener detalles de la auditoria
+* [33m2da680f[m Mejoras en el servicio de auditoria
+* [33me95d7c7[m Se mejora completamente la auditoria del sistema
+* [33mc16ec8d[m test: despliegue automático 2
+* [33mde42305[m test: despliegue automático
+* [33ma671887[m Prueba de despliegue
+* [33md4caf24[m Add automatic deployment to Azure App Service
+* [33mdd3721b[m Add automatic deployment to Azure App Service
+* [33m7d877d1[m Prueba de despliegue automático
+* [33m9f95c1a[m Se corrige workflows
+* [33m730bc34[m Se mejora la eliminación del usuario
+* [33mb2c57b7[m Mejoras en la verificación de los archivos importados
+* [33mc7adc95[m Se agregan enpoint para exportar e importar usuarios
+* [33mefb517a[m Se agrega enpoind d evalidación de contrseña
+* [33m5cb870c[m Se agrega paginación al listar ususarios
+* [33m8f29f47[m Se corige error de manejo de acciones
+* [33m831ae81[m Mejoras en excepciones
+* [33m3116810[m Se registra acción UserLogin
+* [33mf45029b[m Se mejora la obtención del ip
+* [33m9708487[m Mejora de la doc
+* [33m7749c06[m Se agregan auditoria a entidad usuario
+* [33mb8f25c0[m Se agrega localización al acceso
+* [33mefa2fe7[m Se mejora la entidad acceso, incluyendo, ip, location etc, y se mejora auditoria
+* [33md3210ed[m Se modifica la secret key de dinámica a estática
+* [33m937c8fa[m Se agrega endpoint para guardar acciones de ciudadanos
+* [33m77e7b37[m Se agregan endpoint de auditorias
+* [33m965bf5d[m Se añade controlador de ver proyectos del lider
+* [33m9606157[m Habilitado cors para otro grupo
+* [33mb06f1e8[m  Se agregan cors
+* [33m632cbf1[m Prueba de depliegue automatico
+* [33m71104e1[m fix: correct webhook conditional syntax
+* [33m6683417[m fix: correct webhook conditional syntax
+* [33m45d8d30[m feat: deploy using publish profile
+* [33m05764a3[m test: forzar rebuild con tag único
+* [33m0128575[m Fix automatic deployment workflow
+* [33m2de32bd[m Se permite solicitar al enpoint health
+* [33maa3c6fe[m Fix: Use webhook for automatic deployment
+* [33m4c52dc4[m Fix: Correct workflow configuration for ACR and WebApp
+* [33md12f81e[m Test: Add health endpoint to verify auto-deployment
+* [33m393ce5f[m Add automatic deployment workflow
+* [33me3010b8[m Se crea menú dinámico
+* [33m43c2e80[m Add Dockerfile for Render deployment
+* [33m61d99c1[m COrrreción pom.xml
+* [33m0889cba[m Se agrega BD Neon
+* [33m5c4feae[m Remove .env from repository and add to .gitignore
+* [33mce6a200[m Se agrega swaager
+* [33m57c06c2[m Auditoria completada
+* [33m525bcbc[m El curador devuleve con observaciones o aprueba
+* [33m64f45e5[m Asignación de roles y seguridad de acuerdo a estos
+* [33m28c7550[m Se corrige enpoint de registro en secguridad
+* [33mcf5d7e6[m Se completa el servicio y controlador de proyectos
+* [33m4482052[m Creación de execpciones globales, e idioma cambiado al ingles
+* [33m53dd72d[m[33m ([m[1;32mcontroller[m[33m)[m springdoc-openapi anadido
+* [33m6724b85[m filtro de autenticacion creado y anadido
+* [33m6e246bd[m userDetailsService creado
+* [33ma8f63ae[m integrando cambios del service
+* [33mca7a8e7[m usuario controller creado
+* [33mbe5be10[m[33m ([m[1;31morigin/services[m[33m)[m servicio usuario creado
+* [33m8edf58e[m[33m ([m[1;31morigin/security[m[33m)[m primeras configuraciones de seguridad
+* [33mb4cfbbb[m repositories de las entidades creados
+* [33md35cb4e[m creacion de las entidades y sus relaciones
+* [33m8b6d825[m[33m ([m[1;31morigin/main[m[33m)[m properties finalizado y compose anadido
+* [33m033a7e5[m plantilla del proyecto

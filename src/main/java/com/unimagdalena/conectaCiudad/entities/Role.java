@@ -2,6 +2,8 @@ package com.unimagdalena.conectaCiudad.entities;
 
 import java.util.Set;
 
+import org.hibernate.envers.Audited;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -22,6 +24,7 @@ import lombok.ToString;
 
 @Entity
 @Table(name = "roles")
+@Audited
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
