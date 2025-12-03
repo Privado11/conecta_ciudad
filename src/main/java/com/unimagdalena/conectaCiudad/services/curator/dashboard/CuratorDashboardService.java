@@ -1,4 +1,4 @@
-package com.unimagdalena.conectaCiudad.services.curator;
+package com.unimagdalena.conectaCiudad.services.curator.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.curator.*;
 import java.util.List;

@@ -1,8 +1,9 @@
-package com.unimagdalena.conectaCiudad.controllers;
+package com.unimagdalena.conectaCiudad.controllers.citizen;
 
 import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.UserVotingStatsDto;
-import com.unimagdalena.conectaCiudad.services.voting.VotingService;
+import com.unimagdalena.conectaCiudad.services.citizen.voting.CitizenVotingHistoryService;
+import com.unimagdalena.conectaCiudad.services.admin.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,7 +28,8 @@ import java.util.List;
 )
 public class CitizenVotingController {
 
-    private final VotingService votingService;
+    private final CitizenVotingHistoryService citizenVotingHistoryService;
+    private final AdminService adminService;
 
     @GetMapping("/history")
     @Operation(
@@ -61,7 +63,7 @@ public class CitizenVotingController {
     })
     public ResponseEntity<List<UserVoteHistoryDto>> getUserVotingHistory(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getUserVotingHistory(token));
+        return ResponseEntity.ok(citizenVotingHistoryService.getUserVotingHistory(token));
     }
 
     @GetMapping("/stats")
@@ -97,7 +99,7 @@ public class CitizenVotingController {
     })
     public ResponseEntity<UserVotingStatsDto> getUserVotingStats(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getUserVotingStats(token));
+        return ResponseEntity.ok(adminService.getUserVotingStats(token));
     }
 
     private String extractToken(HttpServletRequest request) {

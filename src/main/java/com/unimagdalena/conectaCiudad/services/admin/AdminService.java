@@ -12,6 +12,9 @@ import com.unimagdalena.conectaCiudad.Dto.user.BulkUserImportResult;
 import com.unimagdalena.conectaCiudad.Dto.user.CuratorInfoDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserDto;
 import com.unimagdalena.conectaCiudad.Dto.user.UserSaveDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.UserVotingStatsDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
+import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
 import com.unimagdalena.conectaCiudad.enums.ProjectStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,7 +22,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface AdminService {
 
-    //Users
     UserDto createUser(UserSaveDto user);
     UserDto updateUser(Long id, UserSaveDto user);
     void deleteUser(Long id);
@@ -39,7 +41,6 @@ public interface AdminService {
     CuratorInfoDto findAllCuratorsWithStats(Long projectId);
     List<UserDto> findAll();
 
-    //Projects
     ProjectDto reassignCurator(Long projectId, Long curatorId, Long adminId, Long accessId);
     Page<ProjectDto> findWithFilters(
             String searchTerm,
@@ -58,6 +59,13 @@ public interface AdminService {
             OffsetDateTime createdTo,
             Pageable pageable
     );
-        Statistics<ProjectDto> getGlobalStatistics();
+    Statistics<ProjectDto> getGlobalStatistics();
+    
+   
+    List<VotingProjectDto> getAllVotingProjects(String token);
+    VotingStatsDto getVotingStatistics(String token);
+    List<VotingProjectDto> getOpenVotingProjects(String token);
+    List<VotingProjectDto> getClosedVotingProjects(String token);
+    UserVotingStatsDto getUserVotingStats(String token);
 }
 

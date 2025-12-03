@@ -1,6 +1,5 @@
 package com.unimagdalena.conectaCiudad.controllers;
 
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -13,7 +12,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import com.unimagdalena.conectaCiudad.services.user.UserService;
-import com.unimagdalena.conectaCiudad.validation.OnCreate;
 import com.unimagdalena.conectaCiudad.validation.OnUpdate;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,15 +24,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.web.multipart.MultipartFile;
-
-import com.unimagdalena.conectaCiudad.Dto.page.PagedResponse;
-
-import java.io.IOException;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 @RestController
 @RequestMapping("/api/v1/users")

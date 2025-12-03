@@ -1,4 +1,4 @@
-package com.unimagdalena.conectaCiudad.services.curator;
+package com.unimagdalena.conectaCiudad.services.curator.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.curator.*;
 import com.unimagdalena.conectaCiudad.entities.Project;
@@ -141,7 +141,7 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
         for (int i = 5; i >= 0; i--) {
             OffsetDateTime monthDate = current.minusMonths(i);
             String monthName = monthDate.getMonth()
-                .getDisplayName(TextStyle.SHORT, new Locale("es", "ES"));
+                .getDisplayName(TextStyle.SHORT, Locale.ENGLISH);
             String monthKey = monthDate.format(DateTimeFormatter.ofPattern("yyyy-MM"));
             
             Map<String, Long> statusCounts = monthlyBreakdown.getOrDefault(monthKey, new HashMap<>());
@@ -175,11 +175,11 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
 
                 String priorityLevel;
                 if (isOverdue) {
-                    priorityLevel = "CRÍTICA";
+                    priorityLevel = "CRITICAL";
                 } else if (daysUntilDue <= 2) {
-                    priorityLevel = "ALTA";
+                    priorityLevel = "HIGH";
                 } else if (daysUntilDue <= 5) {
-                    priorityLevel = "MEDIA";
+                    priorityLevel = "MEDIUM";
                 } else {
                     priorityLevel = "NORMAL";
                 }
@@ -217,18 +217,18 @@ public class CuratorDashboardServiceImpl implements CuratorDashboardService {
                 String outcome;
                 
                 if (status == ProjectStatus.READY_TO_PUBLISH || status == ProjectStatus.PUBLISHED  || status == ProjectStatus.OPEN_FOR_VOTING || status == ProjectStatus.VOTING_CLOSED) {
-                    action = "Aprobó proyecto para votación";
-                    outcome = "APROBADO";
+                    action = "PROJECT_APPROVED";
+                    outcome = "APPROVED";
                 } else if (status == ProjectStatus.RETURNED_WITH_OBSERVATIONS) {
-                    action = "Devolvió proyecto con observaciones";
-                    outcome = "DEVUELTO";
+                    action = "PROJECT_RETURNED";
+                    outcome = "RETURNED";
                 }
                  else if (status == ProjectStatus.IN_REVIEW) {
-                    action = "Inició revisión del proyecto";
-                    outcome = "EN_REVISION";
+                    action = "REVIEW_STARTED";
+                    outcome = "IN_REVIEW";
                 } else {
-                    action = "Revisó proyecto";
-                    outcome = "EN_REVISION";
+                    action = "PROJECT_REVIEWED";
+                    outcome = "IN_REVIEW";
                 }
                 
                 return new CuratorRecentActivityDto(

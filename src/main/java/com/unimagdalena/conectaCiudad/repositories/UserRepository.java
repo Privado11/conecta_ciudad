@@ -134,4 +134,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "JOIN u.roles r " +
            "GROUP BY r.name")
     List<Object[]> countUsersByRole();
+
+    
 }

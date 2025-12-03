@@ -1,4 +1,4 @@
-package com.unimagdalena.conectaCiudad.services.dashboard;
+package com.unimagdalena.conectaCiudad.services.admin.dashboard;
 
 import com.unimagdalena.conectaCiudad.Dto.dashboard.*;
 import com.unimagdalena.conectaCiudad.entities.Action;

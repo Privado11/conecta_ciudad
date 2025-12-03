@@ -3,8 +3,9 @@ package com.unimagdalena.conectaCiudad.Dto.action;
 import org.mapstruct.Mapper;
 import org.mapstruct.factory.Mappers;
 
-import com.unimagdalena.conectaCiudad.entities.Action;
+
 import com.unimagdalena.conectaCiudad.Dto.user.UserMapper;
+import com.unimagdalena.conectaCiudad.entities.Action;
 
 @Mapper(componentModel = "spring", uses = { UserMapper.class })
 public interface ActionMapper {

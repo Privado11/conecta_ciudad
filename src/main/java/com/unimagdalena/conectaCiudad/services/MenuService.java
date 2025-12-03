@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 @Slf4j
 @Service
@@ -21,12 +20,6 @@ public class MenuService {
     
     private final UserRepository userRepository;
     
-    private static final Map<String, Integer> ROLE_HIERARCHY = Map.of(
-        "ADMIN", 1,
-        "CURATOR", 2,
-        "LIDER_COMUNITARIO", 3,
-        "CIUDADANO", 4
-    );
     
     public MenuResponseDto getCompleteMenuForUser(String username) {
         User user = findUserByUsername(username);
@@ -36,7 +29,7 @@ public class MenuService {
         MenuResponseDto.UserInfoDto userInfo = new MenuResponseDto.UserInfoDto(
             user.getEmail(),
             user.getName(),
-            getPrimaryRole(user),
+            user.getRoles().get(0).getName(),
             null 
         );
         
@@ -57,9 +50,8 @@ public class MenuService {
         
         menu.add(new MenuItemDto("Inicio", "/dashboard", "Home", null, order++));
         
-        String primaryRole = getHighestPriorityRole(user);
         
-        switch (primaryRole) {
+        switch (user.getRoles().get(0).getName()) {
             case "ADMIN" -> {
                 menu.addAll(createAdminMenu(order));
                 order += 10;
@@ -68,11 +60,11 @@ public class MenuService {
                 menu.addAll(createCuratorMenu(order));
                 order += 10;
             }
-            case "LIDER_COMUNITARIO" -> {
+            case "COMMUNITY_LEADER" -> {
                 menu.addAll(createCommunityLeaderMenu(order));
                 order += 10;
             }
-            case "CIUDADANO" -> {
+            case "CITIZEN" -> {
                 menu.addAll(createCitizenMenu(order));
                 order += 10;
             }
@@ -154,28 +146,9 @@ public class MenuService {
         return menu;
     }
     
-    private String getHighestPriorityRole(User user) {
-        return user.getRoles().stream()
-            .map(role -> role.getName().toUpperCase())
-            .filter(ROLE_HIERARCHY::containsKey)
-            .min((role1, role2) -> 
-                ROLE_HIERARCHY.get(role1).compareTo(ROLE_HIERARCHY.get(role2))
-            )
-            .orElse("CIUDADANO"); 
-    }
+   
     
-    
-    private String getPrimaryRole(User user) {
-        String role = getHighestPriorityRole(user);
-        
-        return switch (role) {
-            case "ADMIN" -> "Administrador";
-            case "CURATOR" -> "Curador";
-            case "LIDER_COMUNITARIO" -> "Líder Comunitario";
-            case "CIUDADANO" -> "Ciudadano";
-            default -> "Usuario";
-        };
-    }
+
     
     private User findUserByUsername(String username) {
         return userRepository.findByEmailOrNationalId(username, username)

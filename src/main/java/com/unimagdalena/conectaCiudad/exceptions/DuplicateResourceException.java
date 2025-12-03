@@ -1,5 +1,10 @@
 package com.unimagdalena.conectaCiudad.exceptions;
 
+import java.util.Map;
+
+import com.unimagdalena.conectaCiudad.enums.ErrorCode;
+
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 
 @Getter
@@ -25,6 +30,13 @@ public class DuplicateResourceException extends RuntimeException {
         this.value = null;
     }
     
+    public DuplicateResourceException(ErrorCode voteAlreadyExists, Map<String,Long> of) {
+        super(voteAlreadyExists.name());
+        this.resource = voteAlreadyExists.name();
+        this.field = "id";
+        this.value = of.get("id");
+    }
+
     public String getErrorCode() { 
         return errorCode; 
     }

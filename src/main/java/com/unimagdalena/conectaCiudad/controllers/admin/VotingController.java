@@ -1,9 +1,8 @@
-package com.unimagdalena.conectaCiudad.controllers;
+package com.unimagdalena.conectaCiudad.controllers.admin;
 
-import com.unimagdalena.conectaCiudad.Dto.voting.UserVoteHistoryDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingProjectDto;
 import com.unimagdalena.conectaCiudad.Dto.voting.VotingStatsDto;
-import com.unimagdalena.conectaCiudad.services.voting.VotingService;
+import com.unimagdalena.conectaCiudad.services.admin.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -28,7 +27,7 @@ import java.util.List;
 )
 public class VotingController {
 
-    private final VotingService votingService;
+    private final AdminService adminService;
 
 
     @GetMapping("/projects")
@@ -66,7 +65,7 @@ public class VotingController {
     })
     public ResponseEntity<List<VotingProjectDto>> getAllVotingProjects(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getAllVotingProjects(token));
+        return ResponseEntity.ok(adminService.getAllVotingProjects(token));
     }
 
    
@@ -106,7 +105,7 @@ public class VotingController {
     })
     public ResponseEntity<VotingStatsDto> getVotingStatistics(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getVotingStatistics(token));
+        return ResponseEntity.ok(adminService.getVotingStatistics(token));
     }
 
   
@@ -148,7 +147,7 @@ public class VotingController {
     })
     public ResponseEntity<List<VotingProjectDto>> getOpenVotingProjects(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getOpenVotingProjects(token));
+        return ResponseEntity.ok(adminService.getOpenVotingProjects(token));
     }
 
    
@@ -190,48 +189,7 @@ public class VotingController {
     })
     public ResponseEntity<List<VotingProjectDto>> getClosedVotingProjects(HttpServletRequest request) {
         String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getClosedVotingProjects(token));
-    }
-
-  
-    @GetMapping("/my-votes")
-    @Operation(
-            summary = "Obtener historial de votaciones del usuario",
-            description = """
-                    Retorna el historial completo de votaciones del usuario autenticado.
-                    
-                    **Información incluida:**
-                    - Datos del proyecto votado
-                    - Decisión del voto (a favor o en contra)
-                    - Fecha y hora del voto
-                    - Hash de verificación del voto
-                    - Estado actual del proyecto
-                    - Resultados finales si la votación está cerrada
-                    - Porcentaje de aprobación
-                    
-                    **Ordenamiento:** Los votos más recientes aparecen primero
-                    
-                    **Permisos requeridos:** Usuario autenticado (cualquier rol)
-                    """
-    )
-    @ApiResponses({
-            @ApiResponse(
-                    responseCode = "200",
-                    description = "Historial de votaciones obtenido exitosamente",
-                    content = @Content(
-                            mediaType = "application/json",
-                            schema = @Schema(implementation = UserVoteHistoryDto.class)
-                    )
-            ),
-            @ApiResponse(
-                    responseCode = "401",
-                    description = "No autenticado - Se requiere token de autenticación",
-                    content = @Content
-            )
-    })
-    public ResponseEntity<List<UserVoteHistoryDto>> getUserVotingHistory(HttpServletRequest request) {
-        String token = extractToken(request);
-        return ResponseEntity.ok(votingService.getUserVotingHistory(token));
+        return ResponseEntity.ok(adminService.getClosedVotingProjects(token));
     }
 
     private String extractToken(HttpServletRequest request) {
